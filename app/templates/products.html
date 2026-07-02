@@ -1,0 +1,176 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "products" %}
+
+{% block title %}商品库 - AI Commerce OS{% endblock %}
+{% block page_pill %}📚 商品库{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>商品库</h1>
+        <p>共 {{ total }} 条记录{% if keyword %}，关键词：{{ keyword }}{% endif %}</p>
+    </div>
+    <div class="header-actions">
+        <a class="ghost-button compact" href="/">返回采集</a>
+        <a class="primary-link-button" href="/products/export">导出Excel</a>
+    </div>
+</section>
+
+<section class="os-card">
+    <form id="batch-delete-form" action="/products/batch-delete" method="post">
+        <input type="hidden" name="page" value="{{ page }}">
+        {% if keyword %}<input type="hidden" name="keyword" value="{{ keyword }}">{% endif %}
+        <div class="library-toolbar">
+            <div>
+                <strong>已选择 <span id="selected-count">0</span> 个商品</strong>
+                <small>只会删除商品库记录，不影响 AI 选品历史结果。</small>
+            </div>
+            <button class="danger-button" type="submit" id="batch-delete-button" disabled>批量删除</button>
+        </div>
+    </form>
+
+    <div class="table-responsive">
+        <table class="os-table product-library-table">
+            <thead>
+                <tr>
+                    <th scope="col">
+                        <input type="checkbox" id="select-all-products" aria-label="全选商品">
+                    </th>
+                    <th scope="col">图片</th>
+                    <th scope="col">标题</th>
+                    <th scope="col">价格</th>
+                    <th scope="col">销量</th>
+                    <th scope="col">店铺</th>
+                    <th scope="col">地区</th>
+                    <th scope="col">商品链接</th>
+                    <th scope="col">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                <tr>
+                    <td>
+                        <input class="product-checkbox" type="checkbox" name="product_ids" value="{{ product.id }}" form="batch-delete-form" aria-label="选择商品">
+                    </td>
+                    <td>
+                        {% if product.image_url %}
+                        <button class="image-preview-button" type="button" data-image="/image-proxy?url={{ product.image_url | quote_plus }}" data-title="{{ product.title or '商品图片' }}">
+                            <img src="/image-proxy?url={{ product.image_url | quote_plus }}" alt="{{ product.title or '商品图片' }}" class="product-image">
+                        </button>
+                        {% else %}
+                        <button class="image-preview-button" type="button" data-image="/static/img/product-placeholder.svg" data-title="{{ product.title or '商品图片' }}">
+                            <img src="/static/img/product-placeholder.svg" alt="{{ product.title or '商品图片' }}" class="product-image">
+                        </button>
+                        {% endif %}
+                    </td>
+                    <td class="product-title">{{ product.title or '-' }}</td>
+                    <td>{{ product.price or '-' }}</td>
+                    <td>{{ product.sales or '-' }}</td>
+                    <td>
+                        <div>{{ product.shop_name or '-' }}</div>
+                        {% if product.support_drop_shipping %}
+                        <span class="status-pill success">支持代发</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ product.province or '-' }}</td>
+                    <td>
+                        {% if product.product_url %}
+                        <a class="mini-link" href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">打开</a>
+                        {% else %}
+                        <span class="muted-text">无链接</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form action="/products/{{ product.id }}/delete" method="post" class="inline-delete-form">
+                            <input type="hidden" name="page" value="{{ page }}">
+                            {% if keyword %}<input type="hidden" name="keyword" value="{{ keyword }}">{% endif %}
+                            <button class="danger-link-button" type="submit">删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9" class="empty-cell">暂无商品数据</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="unified-pagination" aria-label="商品分页">
+        <a class="{% if page <= 1 %}disabled{% endif %}" href="/products?page={{ page - 1 }}{% if keyword %}&keyword={{ keyword | quote_plus }}{% endif %}">上一页</a>
+
+        {% for page_number in range(1, total_pages + 1) %}
+        <a class="{% if page_number == page %}active{% endif %}" href="/products?page={{ page_number }}{% if keyword %}&keyword={{ keyword | quote_plus }}{% endif %}">
+            {{ page_number }}
+        </a>
+        {% endfor %}
+
+        <a class="{% if page >= total_pages %}disabled{% endif %}" href="/products?page={{ page + 1 }}{% if keyword %}&keyword={{ keyword | quote_plus }}{% endif %}">下一页</a>
+    </nav>
+    {% endif %}
+</section>
+
+<div class="image-modal" id="image-modal" aria-hidden="true">
+    <div class="image-modal-panel">
+        <button class="image-modal-close" type="button" aria-label="关闭">×</button>
+        <img src="" alt="商品大图" id="image-modal-img">
+        <div id="image-modal-title"></div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll(".image-preview-button").forEach((button) => {
+        button.addEventListener("click", () => {
+            document.getElementById("image-modal-img").src = button.dataset.image;
+            document.getElementById("image-modal-title").textContent = button.dataset.title || "";
+            document.getElementById("image-modal").classList.add("open");
+        });
+    });
+
+    document.querySelector(".image-modal-close").addEventListener("click", () => {
+        document.getElementById("image-modal").classList.remove("open");
+    });
+
+    const selectAll = document.getElementById("select-all-products");
+    const checkboxes = Array.from(document.querySelectorAll(".product-checkbox"));
+    const selectedCount = document.getElementById("selected-count");
+    const batchDeleteButton = document.getElementById("batch-delete-button");
+    const batchDeleteForm = document.getElementById("batch-delete-form");
+
+    function updateSelectionState() {
+        const selected = checkboxes.filter((checkbox) => checkbox.checked);
+        selectedCount.textContent = selected.length;
+        batchDeleteButton.disabled = selected.length === 0;
+        selectAll.checked = selected.length > 0 && selected.length === checkboxes.length;
+        selectAll.indeterminate = selected.length > 0 && selected.length < checkboxes.length;
+    }
+
+    selectAll.addEventListener("change", () => {
+        checkboxes.forEach((checkbox) => {
+            checkbox.checked = selectAll.checked;
+        });
+        updateSelectionState();
+    });
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.addEventListener("change", updateSelectionState);
+    });
+
+    batchDeleteForm.addEventListener("submit", (event) => {
+        if (!confirm("确认删除选中的商品吗？此操作不会影响 AI 选品历史结果。")) {
+            event.preventDefault();
+        }
+    });
+
+    document.querySelectorAll(".inline-delete-form").forEach((form) => {
+        form.addEventListener("submit", (event) => {
+            if (!confirm("确认删除这个商品吗？")) {
+                event.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

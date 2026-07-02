@@ -1,0 +1,209 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "settings" %}
+
+{% block title %}AI Score配置 - AI Commerce OS{% endblock %}
+{% block page_pill %}⑧ 功能设置{% endblock %}
+
+{% block content %}
+<section class="settings-grid">
+    <div class="os-card settings-main">
+        <div class="card-head">
+            <h2>AI评分权重设置</h2>
+        </div>
+        <form action="/ai-score-config/weights" method="post">
+            {% for key, label in [
+                ("supplier_score", "Supplier Score（供应商评分）"),
+                ("product_score", "Product Score（商品评分）"),
+                ("profit_score", "Profit Score（利润评分）"),
+                ("price_score", "Price Score（价格评分）"),
+                ("fulfillment_score", "Fulfillment Score（履约评分）")
+            ] %}
+            <div class="weight-row" data-weight-row>
+                <span>{{ label }}</span>
+                <input class="weight-range" type="range" min="0" max="100" value="{{ (weights[key] * 100)|round|int }}" data-target="{{ key }}">
+                <input class="weight-number" id="{{ key }}" name="{{ key }}" type="number" min="0" max="100" value="{{ (weights[key] * 100)|round|int }}" data-target="{{ key }}">
+                <strong>%</strong>
+            </div>
+            {% endfor %}
+            <div class="setting-actions">
+                <strong id="weight-total">总计 100%</strong>
+                <span id="weight-status" class="config-status success">可保存</span>
+                <button type="submit" id="save-weights-button">保存设置</button>
+                <button type="button" class="ghost-action-button" id="reset-default-weights">恢复默认</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="os-card">
+        <div class="card-head"><h2>推荐等级设置</h2></div>
+        <table class="os-table">
+            <thead><tr><th>等级</th><th>分数区间</th><th>说明</th><th>操作</th></tr></thead>
+            <tbody>
+                <tr><td>S+</td><td>90-100</td><td>非常推荐</td><td><a>编辑</a></td></tr>
+                <tr><td>S</td><td>80-89</td><td>推荐</td><td><a>编辑</a></td></tr>
+                <tr><td>A</td><td>70-79</td><td>可观察</td><td><a>编辑</a></td></tr>
+                <tr><td>B</td><td>60-69</td><td>谨慎考虑</td><td><a>编辑</a></td></tr>
+                <tr><td>C</td><td>0-59</td><td>不推荐</td><td><a>编辑</a></td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="settings-grid">
+    <div class="os-card settings-main">
+        <div class="card-head">
+            <h2>评分规则说明</h2>
+            <span>规则由插件计算，权重调整后新评分立即生效</span>
+        </div>
+        <div class="rule-explain-grid">
+            <div class="rule-explain-card">
+                <h3>Supplier Score（供应商评分）</h3>
+                <p>判断供应商是否稳定、可信、适合长期合作。源头工厂是核心权重，会直接影响供应商评分和利润可信度。</p>
+                <div class="rule-chip-list">
+                    <span>源头工厂</span>
+                    <span>实力商家</span>
+                    <span>深度验厂</span>
+                    <span>诚信通</span>
+                    <span>开店时间</span>
+                    <span>店铺评分</span>
+                    <span>回头率</span>
+                    <span>响应速度</span>
+                    <span>48小时发货</span>
+                    <span>一件代发</span>
+                    <span>OEM</span>
+                    <span>LOGO定制</span>
+                    <span>MOQ</span>
+                </div>
+            </div>
+
+            <div class="rule-explain-card">
+                <h3>Product Score（商品评分）</h3>
+                <p>判断商品本身的市场表现、活跃度和销售稳定性。</p>
+                <div class="rule-chip-list">
+                    <span>销量</span>
+                    <span>销量增长率</span>
+                    <span>收藏人数</span>
+                    <span>评价数量</span>
+                    <span>好评率</span>
+                    <span>库存稳定</span>
+                    <span>商品更新时间</span>
+                    <span>商品活跃度</span>
+                </div>
+            </div>
+
+            <div class="rule-explain-card">
+                <h3>Profit Score（利润评分）</h3>
+                <p>判断商品是否有足够利润空间，以及投入产出是否合理。建议售价按采购价、物流、包装、平台佣金、目标利润率和风险缓冲综合计算；非源头工厂会降低利润评分可信度。</p>
+                <div class="rule-chip-list">
+                    <span>采购价</span>
+                    <span>物流</span>
+                    <span>包装</span>
+                    <span>平台佣金</span>
+                    <span>目标利润率</span>
+                    <span>风险缓冲</span>
+                    <span>建议售价</span>
+                    <span>预计利润</span>
+                    <span>利润率</span>
+                    <span>ROI</span>
+                </div>
+            </div>
+
+            <div class="rule-explain-card">
+                <h3>Price Score（价格评分）</h3>
+                <p>判断采购价格在市场中的竞争力和后续销售弹性。</p>
+                <div class="rule-chip-list">
+                    <span>市场均价</span>
+                    <span>最低价</span>
+                    <span>价格排名</span>
+                    <span>运费</span>
+                    <span>包邮</span>
+                    <span>价格稳定性</span>
+                </div>
+            </div>
+
+            <div class="rule-explain-card">
+                <h3>Fulfillment Score（履约评分）</h3>
+                <p>判断供应链履约能力，降低发货、库存和售后风险。</p>
+                <div class="rule-chip-list">
+                    <span>发货速度</span>
+                    <span>库存稳定</span>
+                    <span>售后能力</span>
+                    <span>订单处理能力</span>
+                    <span>响应时间</span>
+                </div>
+            </div>
+        </div>
+        <div class="rule-note">
+            当前页面只展示评分规则说明。AI Score 的具体计算仍由后端评分插件、权重配置和规则配置共同完成，历史评分记录会保留当时快照。
+        </div>
+    </div>
+
+    <div class="os-card">
+        <div class="card-head"><h2>插件管理</h2></div>
+        <div class="plugin-list">
+            {% for plugin in plugins %}
+            <div>
+                <span>{{ plugin.display_name }}</span>
+                {% if plugin.enabled %}
+                <strong class="enabled">启用</strong>
+                {% else %}
+                <strong>预留</strong>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+<script>
+    const defaultWeights = {
+        supplier_score: 40,
+        product_score: 20,
+        profit_score: 20,
+        price_score: 10,
+        fulfillment_score: 10,
+    };
+
+    const weightRows = Array.from(document.querySelectorAll("[data-weight-row]"));
+    const totalLabel = document.getElementById("weight-total");
+    const statusLabel = document.getElementById("weight-status");
+    const saveButton = document.getElementById("save-weights-button");
+
+    function syncWeightInput(source) {
+        const target = source.dataset.target;
+        const value = Math.max(0, Math.min(100, Number(source.value || 0)));
+        document.querySelectorAll(`[data-target="${target}"]`).forEach((input) => {
+            input.value = value;
+        });
+        updateWeightTotal();
+    }
+
+    function updateWeightTotal() {
+        const total = Array.from(document.querySelectorAll(".weight-number"))
+            .reduce((sum, input) => sum + Number(input.value || 0), 0);
+        totalLabel.textContent = `总计 ${total}%`;
+        const valid = total === 100;
+        saveButton.disabled = !valid;
+        statusLabel.textContent = valid ? "可保存" : "总计必须等于 100%";
+        statusLabel.classList.toggle("success", valid);
+        statusLabel.classList.toggle("error", !valid);
+    }
+
+    weightRows.forEach((row) => {
+        row.querySelectorAll("input").forEach((input) => {
+            input.addEventListener("input", () => syncWeightInput(input));
+        });
+    });
+
+    document.getElementById("reset-default-weights").addEventListener("click", () => {
+        Object.entries(defaultWeights).forEach(([key, value]) => {
+            document.querySelectorAll(`[data-target="${key}"]`).forEach((input) => {
+                input.value = value;
+            });
+        });
+        updateWeightTotal();
+    });
+
+    updateWeightTotal();
+</script>
+{% endblock %}

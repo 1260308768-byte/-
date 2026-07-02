@@ -1,0 +1,49 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "suppliers" %}
+
+{% block title %}供应商库 - AI Commerce OS{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>供应商库</h1>
+        <p>共 {{ suppliers|length }} 个供应商，来源于 AI 选品任务采集结果。</p>
+    </div>
+</section>
+
+<section class="os-card">
+    <div class="table-responsive">
+        <table class="os-table">
+            <thead>
+                <tr>
+                    <th>供应商</th>
+                    <th>地区</th>
+                    <th>店铺等级</th>
+                    <th>工厂</th>
+                    <th>实力商家</th>
+                    <th>48小时发货</th>
+                    <th>一件代发</th>
+                    <th>店铺评分</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for supplier in suppliers %}
+                <tr>
+                    <td>{{ supplier.shop_name }}</td>
+                    <td>{{ supplier.province or "-" }}</td>
+                    <td>{{ supplier.shop_level or "-" }}</td>
+                    <td>{{ "是" if supplier.is_factory else "否" }}</td>
+                    <td>{{ "是" if supplier.is_powerful_merchant else "否" }}</td>
+                    <td>{{ "是" if supplier.ships_in_48h else "否" }}</td>
+                    <td>{{ "支持" if supplier.support_drop_shipping else "不支持" }}</td>
+                    <td>{{ supplier.shop_rating or "-" }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="empty-cell">暂无供应商数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

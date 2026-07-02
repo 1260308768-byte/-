@@ -1,0 +1,89 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "selection" %}
+
+{% block title %}AI选品 - AI Commerce OS{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>AI选品</h1>
+        <p>输入关键词后创建 AI 选品任务，系统会自动采集、评分并生成推荐结果。</p>
+    </div>
+    <div class="header-actions">
+        <a class="ghost-button compact" href="/ai-score-config">评分配置</a>
+    </div>
+</section>
+
+<section class="os-card">
+    <div class="card-head">
+        <h2>创建选品任务</h2>
+        <span>最多采集 10 页</span>
+    </div>
+    <form action="/ai-selection/tasks" method="post" class="selection-form">
+        <label>
+            <span>关键词</span>
+            <input name="keyword" value="{{ latest_task.keyword if latest_task else '收纳盒' }}" required>
+        </label>
+        <label>
+            <span>采集页数</span>
+            <input name="pages" type="number" min="1" max="10" value="10">
+        </label>
+        <label class="price-range-filter">
+            <span>采购价区间</span>
+            <div class="range-inputs">
+                <input name="min_purchase_price" type="number" min="0" step="0.01" placeholder="最低价">
+                <i></i>
+                <input name="max_purchase_price" type="number" min="0" step="0.01" placeholder="最高价">
+            </div>
+        </label>
+        <button type="submit">开始分析</button>
+    </form>
+</section>
+
+<section class="dashboard-grid lower-grid">
+    <div class="os-card">
+        <div class="card-head">
+            <h2>最近任务</h2>
+        </div>
+        <div class="task-list">
+            {% for task in tasks[:8] %}
+            <a href="/ai-selection/tasks/{{ task.id }}">
+                <span>{{ task.keyword }}</span>
+                <strong>{{ task.status }} · {{ task.deduped_products }} 个商品</strong>
+            </a>
+            {% else %}
+            <div class="empty-cell">暂无任务</div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="os-card">
+        <div class="card-head">
+            <h2>最新推荐</h2>
+            {% if latest_task %}<a href="/ai-selection/tasks/{{ latest_task.id }}">查看结果 ›</a>{% endif %}
+        </div>
+        <div class="table-responsive">
+            <table class="os-table">
+                <thead>
+                    <tr>
+                        <th>商品</th>
+                        <th>AI Score</th>
+                        <th>推荐等级</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recommendations[:6] %}
+                    <tr>
+                        <td>{{ row.product.title }}</td>
+                        <td class="score-green">{{ "%.0f"|format(row.score_record.ai_score) }}</td>
+                        <td><span class="rank-badge">{{ row.score_record.recommendation_level }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="empty-cell">暂无推荐数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

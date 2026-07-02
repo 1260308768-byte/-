@@ -1,0 +1,89 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "analytics" %}
+
+{% block title %}数据中心 - AI Commerce OS{% endblock %}
+{% block analytics_link %}/data-center{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>数据中心</h1>
+        <p>汇总最近一次 AI 选品任务的数据表现。</p>
+    </div>
+    <div class="header-actions">
+        {% if latest_task %}<a class="primary-link-button" href="/ai-selection/tasks/{{ latest_task.id }}/report">查看报告</a>{% endif %}
+    </div>
+</section>
+
+<section class="metric-grid">
+    <div class="metric-card">
+        <span>AI评分商品</span>
+        <strong>{{ dashboard.total_products }}</strong>
+        <small>最近任务</small>
+    </div>
+    <div class="metric-card">
+        <span>推荐商品</span>
+        <strong>{{ dashboard.top_count }}</strong>
+        <small>Top 推荐池</small>
+    </div>
+    <div class="metric-card">
+        <span>供应商数量</span>
+        <strong>{{ dashboard.total_suppliers }}</strong>
+        <small>店铺去重后</small>
+    </div>
+    <div class="metric-card">
+        <span>平均 ROI</span>
+        <strong>{{ dashboard.avg_roi }}</strong>
+        <small>Top 商品均值</small>
+    </div>
+</section>
+
+<section class="dashboard-grid lower-grid">
+    <div class="os-card">
+        <div class="card-head">
+            <h2>Top 推荐分布</h2>
+            <span>{{ latest_task.keyword if latest_task else "-" }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="os-table">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>商品</th>
+                        <th>AI Score</th>
+                        <th>ROI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recommendations[:10] %}
+                    <tr>
+                        <td>{{ row.recommendation.rank }}</td>
+                        <td>{{ row.product.title }}</td>
+                        <td class="score-green">{{ "%.0f"|format(row.score_record.ai_score) }}</td>
+                        <td>{{ "%.1f"|format(row.score_record.roi or 0) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="empty-cell">暂无数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="os-card">
+        <div class="card-head">
+            <h2>任务记录</h2>
+        </div>
+        <div class="task-list">
+            {% for task in tasks[:8] %}
+            <a href="/ai-selection/tasks/{{ task.id }}">
+                <span>{{ task.keyword }}</span>
+                <strong>{{ task.status }} · {{ task.deduped_products }} 商品</strong>
+            </a>
+            {% else %}
+            <div class="empty-cell">暂无任务</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

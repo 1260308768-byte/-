@@ -1,0 +1,93 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "analytics" %}
+
+{% block title %}数据中心 - AI Commerce OS{% endblock %}
+{% block page_pill %}⑦ 数据中心{% endblock %}
+
+{% block content %}
+{% if report and task %}
+<section class="report-tabs">
+    <a class="active">概览</a>
+    <a>商品分析</a>
+    <a>供应商分析</a>
+    <a>利润分析</a>
+    <a>市场分析</a>
+    <span>{{ task.started_at.strftime("%Y-%m-%d") if task.started_at else "2025-05-21" }} → {{ task.finished_at.strftime("%Y-%m-%d") if task.finished_at else "2025-05-28" }}</span>
+</section>
+
+<section class="analytics-grid">
+    <div class="os-card">
+        <div class="card-head"><h2>AI Score 分布</h2></div>
+        <div class="donut-wrap">
+            <div class="donut-chart"><strong>{{ report_data.distribution.avg }}</strong><span>平均分</span></div>
+            <ul class="legend-list">
+                <li><i style="background:#6f63ff"></i> 90-100分 28%</li>
+                <li><i style="background:#5cc9a7"></i> 80-90分 30%</li>
+                <li><i style="background:#ffcf5c"></i> 70-80分 20%</li>
+                <li><i style="background:#ff6f61"></i> 60分以下 12%</li>
+            </ul>
+        </div>
+    </div>
+    <div class="os-card">
+        <div class="card-head"><h2>利润率分布</h2></div>
+        <div class="donut-wrap">
+            <div class="donut-chart green"><strong>58%</strong><span>平均利润率</span></div>
+            <ul class="legend-list">
+                <li><i style="background:#5cc9a7"></i> >50% 32%</li>
+                <li><i style="background:#6f63ff"></i> 40%-50% 28%</li>
+                <li><i style="background:#ffcf5c"></i> 30%-40% 20%</li>
+                <li><i style="background:#ff6f61"></i> <30% 7%</li>
+            </ul>
+        </div>
+    </div>
+    <div class="os-card wide-chart">
+        <div class="card-head"><h2>商品趋势</h2></div>
+        <div class="line-chart small">
+            <svg viewBox="0 0 700 220">
+                <polyline points="20,150 90,122 160,132 230,110 300,104 370,86 440,96 510,72 580,88 660,60" fill="none" stroke="#6f63ff" stroke-width="4"/>
+                <polygon points="20,150 90,122 160,132 230,110 300,104 370,86 440,96 510,72 580,88 660,60 660,210 20,210" fill="rgba(111,99,255,.12)"/>
+            </svg>
+        </div>
+    </div>
+</section>
+
+<section class="analytics-grid lower">
+    <div class="os-card">
+        <div class="card-head"><h2>TOP10 商品分类</h2></div>
+        <div class="bar-list">
+            {% for name, value in [("家居收纳",28),("厨房用品",22),("桌面整理",18),("跨境热销",12),("衣柜整理",8)] %}
+            <div><span>{{ name }}</span><i style="width:{{ value * 3 }}%"></i><strong>{{ value }}%</strong></div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="os-card">
+        <div class="card-head"><h2>TOP5 供应商</h2></div>
+        <div class="supplier-rank">
+            {% for row in recommendations[:5] %}
+            <div><span>{{ row.supplier.shop_name if row.supplier else "-" }}</span><strong>{{ "%.0f"|format(row.score_record.ai_score) }}</strong></div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="os-card wide-chart">
+        <div class="card-head"><h2>利润趋势</h2></div>
+        <div class="line-chart small">
+            <svg viewBox="0 0 700 220">
+                <polyline points="20,140 90,130 160,116 230,118 300,94 370,102 440,88 510,94 580,76 660,62" fill="none" stroke="#5cc9a7" stroke-width="4"/>
+            </svg>
+        </div>
+    </div>
+</section>
+
+<section class="os-card">
+    <div class="card-head">
+        <h2>{{ report.title }}</h2>
+        <a href="/ai-selection/tasks/{{ task.id }}">返回结果 ›</a>
+    </div>
+    <pre class="report-markdown light">{{ report.content_markdown }}</pre>
+</section>
+{% else %}
+<section class="os-card empty-cell">报告不存在</section>
+{% endif %}
+{% endblock %}
+

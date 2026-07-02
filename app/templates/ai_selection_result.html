@@ -1,0 +1,725 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "selection" %}
+
+{% block title %}AI选品 - AI Commerce OS{% endblock %}
+
+{% block content %}
+{% if task %}
+{% set stats = namespace(score=0, roi=0, profit=0) %}
+{% for row in recommendations %}
+    {% set stats.score = stats.score + (row.score_record.ai_score or 0) %}
+    {% set stats.roi = stats.roi + ((row.score_record.roi or 0) * 100) %}
+    {% set stats.profit = stats.profit + (row.score_record.estimated_profit or 0) %}
+{% endfor %}
+{% set item_count = recommendations|length %}
+{% set avg_score = (stats.score / item_count) if item_count else 0 %}
+{% set avg_roi = (stats.roi / item_count) if item_count else 0 %}
+{% set avg_profit = (stats.profit / item_count) if item_count else 0 %}
+{% set elapsed = ((task.finished_at - task.started_at).total_seconds() / 60) if task.finished_at and task.started_at else 0 %}
+
+<section class="selection-search-hero">
+    <form action="/ai-selection/tasks" method="post" class="selection-search-form">
+        <label>
+            <span>AI选品关键词</span>
+            <input name="keyword" value="{{ task.keyword }}" placeholder="输入关键词，例如：收纳盒、香水、牛仔短裤" required>
+        </label>
+        <label class="price-range-filter">
+            <span>采购价区间</span>
+            <div class="range-inputs">
+                <input name="min_purchase_price" type="number" min="0" step="0.01" value="{{ task.min_purchase_price or '' }}" placeholder="最低价">
+                <i></i>
+                <input name="max_purchase_price" type="number" min="0" step="0.01" value="{{ task.max_purchase_price or '' }}" placeholder="最高价">
+            </div>
+        </label>
+        <button type="submit">开始分析</button>
+    </form>
+</section>
+
+<section class="os-card progress-card">
+    <div class="card-head">
+        <h2 id="progress-title">正在分析：{{ task.keyword }}</h2>
+        <span id="progress-eta">预计剩余时间：计算中</span>
+    </div>
+    <div class="pipeline" id="pipeline" data-task-id="{{ task.id }}" data-status="{{ task.status }}">
+        <div data-step="collecting"><strong>商品采集</strong><span>等待</span><i></i></div>
+        <div data-step="deduping"><strong>去重过滤</strong><span>等待</span><i></i></div>
+        <div data-step="enriching"><strong>信息采集</strong><span>等待</span><i></i></div>
+        <div data-step="scoring"><strong>AI评分</strong><span>等待</span><i></i></div>
+        <div data-step="reporting"><strong>生成报告</strong><span>等待</span><i></i></div>
+    </div>
+</section>
+
+<section class="selection-summary-grid">
+    <div class="analysis-metric-card">
+        <span>采集商品数</span>
+        <strong>{{ task.total_products }}</strong>
+        <small>去重后 {{ task.deduped_products }}</small>
+    </div>
+    <div class="analysis-metric-card">
+        <span>供应商数量</span>
+        <strong>{{ task.deduped_suppliers }}</strong>
+        <small>店铺去重</small>
+    </div>
+    <div class="analysis-metric-card">
+        <span>推荐商品</span>
+        <strong>{{ item_count }}</strong>
+        <small>Top20 候选池</small>
+    </div>
+    <div class="analysis-metric-card">
+        <span>平均AI Score</span>
+        <strong>{{ "%.0f"|format(avg_score) }}</strong>
+        <small>综合评分</small>
+    </div>
+    <div class="analysis-metric-card">
+        <span>平均利润率</span>
+        <strong>{{ "%.0f"|format(avg_roi) }}%</strong>
+        <small>预计利润 ¥{{ "%.2f"|format(avg_profit) }}</small>
+    </div>
+    <div class="analysis-metric-card">
+        <span>平均ROI</span>
+        <strong>{{ "%.1f"|format((avg_roi / 100) if avg_roi else 0) }}</strong>
+        <small>分析耗时 {{ "%.1f"|format(elapsed) }} 分钟</small>
+    </div>
+</section>
+
+<section class="os-card analysis-board" id="top">
+    <div class="analysis-board-head">
+        <div>
+            <h2>Top20 选品分析</h2>
+            <p>默认展示核心决策字段，展开行查看利润、供应商、商品数据和履约细节。</p>
+        </div>
+        <div class="analysis-board-actions">
+            <button class="ghost-button compact" type="button" id="batch-add-button">批量收藏</button>
+            <button class="primary-link-button" type="button" id="batch-export-button">批量导出</button>
+        </div>
+    </div>
+
+    <div class="analysis-toolbar">
+        <label class="analysis-search">
+            <span>搜索</span>
+            <input id="result-search" type="search" placeholder="商品名 / 供应商 / 标签">
+        </label>
+        <label>
+            <span>等级</span>
+            <select id="level-filter">
+                <option value="">全部</option>
+                <option value="S+">S+</option>
+                <option value="S">S</option>
+                <option value="A+">A+</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+            </select>
+        </label>
+        <label>
+            <span>排序</span>
+            <select id="sort-filter">
+                <option value="rank">默认排名</option>
+                <option value="score">AI Score</option>
+                <option value="roi">ROI</option>
+                <option value="profit">预计利润</option>
+                <option value="supplier">Supplier Score</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="analysis-table-wrap">
+        <table class="analysis-table result-table" id="analysis-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all-results" aria-label="全选"></th>
+                    <th>商品</th>
+                    <th>AI Score</th>
+                    <th>等级</th>
+                    <th>利润</th>
+                    <th>市场价格</th>
+                    <th>Supplier Score</th>
+                    <th>推荐理由</th>
+                    <th>风险提示</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in recommendations %}
+                {% set product = row.product %}
+                {% set supplier = row.supplier %}
+                {% set score = row.score_record %}
+                {% set reasons = score.reason_detail_json | loads_json %}
+                {% set risks = score.risk_detail_json | loads_json %}
+                {% set score_value = score.ai_score or 0 %}
+                {% set level = "B" %}
+                {% if score_value >= 95 %}{% set level = "S+" %}
+                {% elif score_value >= 90 %}{% set level = "S" %}
+                {% elif score_value >= 85 %}{% set level = "A+" %}
+                {% elif score_value >= 75 %}{% set level = "A" %}
+                {% endif %}
+                {% set level_class = "level-b" %}
+                {% if level == "S+" %}{% set level_class = "level-sp" %}
+                {% elif level == "S" %}{% set level_class = "level-s" %}
+                {% elif level == "A+" %}{% set level_class = "level-ap" %}
+                {% elif level == "A" %}{% set level_class = "level-a" %}
+                {% endif %}
+                {% set roi_percent = (score.roi or 0) * 100 %}
+                {% set supplier_tip = "Supplier Score：%.0f；店铺评分：%s；回头率：%s%%；响应速度：%s%%"|format(score.supplier_score or 0, supplier.shop_rating if supplier else "-", "%.0f"|format((supplier.repurchase_rate or 0) * 100) if supplier else "-", "%.0f"|format((supplier.response_speed or 0) * 100) if supplier else "-") %}
+                {% set market = market_analyses.get(product.id) %}
+                <tr class="analysis-main-row"
+                    data-rank="{{ row.recommendation.rank }}"
+                    data-score="{{ score_value }}"
+                    data-roi="{{ score.roi or 0 }}"
+                    data-profit="{{ score.estimated_profit or 0 }}"
+                    data-supplier="{{ score.supplier_score or 0 }}"
+                    data-level="{{ level }}"
+                    data-text="{{ (product.title or '') ~ ' ' ~ (supplier.shop_name if supplier else '') ~ ' ' ~ level }}">
+                    <td>
+                        <input class="result-checkbox" type="checkbox" data-product-id="{{ product.id }}" data-task-id="{{ task.id }}">
+                    </td>
+                    <td>
+                        <div class="analysis-product">
+                            <div class="analysis-thumb">
+                                {% if product.image_url %}
+                                <button class="image-preview-button" type="button" data-image="/image-proxy?url={{ product.image_url | quote_plus }}" data-title="{{ product.title or '商品图片' }}">
+                                    <img src="/image-proxy?url={{ product.image_url | quote_plus }}" alt="{{ product.title }}">
+                                </button>
+                                {% else %}
+                                <button class="image-preview-button" type="button" data-image="/static/img/product-placeholder.svg" data-title="{{ product.title or '商品图片' }}">
+                                    <img src="/static/img/product-placeholder.svg" alt="{{ product.title or '商品图片' }}">
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div class="analysis-product-copy">
+                                <strong>{{ product.title or "-" }}</strong>
+                                <div class="analysis-product-meta">
+                                    <span>{{ product.keyword or "未分类" }}</span>
+                                    <span>{{ product.shop_name or "-" }}</span>
+                                    {% if product.product_url %}
+                                    <a href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">商品链接</a>
+                                    {% else %}
+                                    <span>无链接</span>
+                                    {% endif %}
+                                </div>
+                                <div class="ai-tags">
+                                    {% if supplier and supplier.is_factory %}<span>🏭 源头工厂</span>{% endif %}
+                                    {% if product.support_drop_shipping %}<span>🚚 一件代发</span>{% endif %}
+                                    {% if roi_percent >= 50 %}<span>💰 高利润</span>{% endif %}
+                                    {% if product.sales_count and product.sales_count >= 1000 %}<span>🔥 热销</span>{% endif %}
+                                    {% if supplier and supplier.ships_in_48h %}<span>⚡ 发货快</span>{% endif %}
+                                    {% if score_value >= 85 %}<span>⭐ AI推荐</span>{% endif %}
+                                    {% if product.moq and product.moq <= 10 %}<span>📦 MOQ≤10</span>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="score-stack">
+                            <strong>{{ "%.0f"|format(score_value) }}</strong>
+                            <span>★★★★★</span>
+                            <em class="{{ level_class }}">{{ level }}</em>
+                        </div>
+                    </td>
+                    <td><span class="level-badge {{ level_class }}">{{ level }}</span></td>
+                    <td>
+                        <div class="profit-flow">
+                            <span>采购价 <strong>¥{{ "%.2f"|format(product.purchase_price or product.price|float(0)) }}</strong></span>
+                            <span>建议售价 <strong>¥{{ "%.2f"|format(product.suggested_price or 0) }}</strong></span>
+                            <span>预计利润 <strong>¥{{ "%.2f"|format(score.estimated_profit or 0) }}</strong></span>
+                            <span>利润率 <strong>{{ "%.0f"|format(roi_percent) }}%</strong></span>
+                            <span>ROI <strong>{{ "%.1f"|format(score.roi or 0) }}</strong></span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="market-price-stack" data-market-summary data-product-id="{{ product.id }}">
+                            <span>平台前三价</span>
+                            <div class="market-platform-mini-list" data-market-platforms-mini>
+                                {% if market %}
+                                    {% for platform in market.platforms %}
+                                    <b data-platform-mini="{{ platform.code }}">
+                                        {{ platform.display_name }}
+                                        {% if platform.price_samples %}
+                                            {% for price in platform.price_samples[:3] %}{{ price | money_or_dash }}{% if not loop.last %} / {% endif %}{% endfor %}
+                                        {% else %}
+                                            -- / -- / --
+                                        {% endif %}
+                                    </b>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <em class="market-competition {{ market.competitiveness_class if market else 'unknown' }}">
+                                {{ market.competitiveness_label if market else "未匹配到可信同款" }}
+                            </em>
+                            <small data-market-status>待采集</small>
+                            <div class="market-login-actions">
+                                <button class="market-login-button" type="button" data-market-login="taobao">登录淘宝</button>
+                            </div>
+                            <button class="market-fetch-button" type="button" data-market-fetch="{{ product.id }}">采集市场价</button>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="supplier-score" title="{{ supplier_tip }}">
+                            <span>Supplier Score</span>
+                            <strong>{{ "%.0f"|format(score.supplier_score or 0) }}</strong>
+                            <small>★★★★★</small>
+                        </div>
+                    </td>
+                    <td>
+                        <ul class="insight-list positive">
+                            {% for reason in reasons[:3] %}
+                            <li>{{ reason }}</li>
+                            {% else %}
+                            <li>综合评分靠前</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td>
+                        <ul class="insight-list risk">
+                            {% for risk in risks[:2] %}
+                            <li>{{ risk }}</li>
+                            {% else %}
+                            <li>暂无明显风险</li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                    <td>
+                        <div class="analysis-actions">
+                            <button class="expand-row-button" type="button">展开</button>
+                            {% if product.product_url %}
+                            <a class="mini-link" href="{{ product.product_url }}" target="_blank" rel="noopener noreferrer">查看</a>
+                            {% else %}
+                            <span class="mini-link disabled">查看</span>
+                            {% endif %}
+                            <form action="/products/add-from-ai/{{ product.id }}" method="post">
+                                <input type="hidden" name="task_id" value="{{ task.id }}">
+                                <button class="mini-action-button" type="submit">收藏</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="analysis-detail-row">
+                    <td colspan="10">
+                        <div class="detail-panel">
+                            <div>
+                                <h3>基础信息</h3>
+                                <p><span>商品分类</span><strong>{{ product.keyword or "-" }}</strong></p>
+                                <p><span>商品规格</span><strong>{{ product.moq or "-" }} 起订 / 库存 {{ product.stock or "-" }}</strong></p>
+                                <p><span>商品更新时间</span><strong>{{ product.last_updated_at.strftime("%Y-%m-%d") if product.last_updated_at else "-" }}</strong></p>
+                            </div>
+                            <div>
+                                <h3>供应商信息</h3>
+                                <p><span>店铺评分</span><strong>{{ supplier.shop_rating if supplier else "-" }}</strong></p>
+                                <p><span>源头工厂</span><strong>{{ "是" if supplier and supplier.is_factory else "否" }}</strong></p>
+                                <p><span>实力商家</span><strong>{{ "是" if supplier and supplier.is_powerful_merchant else "否" }}</strong></p>
+                                <p><span>深度验厂</span><strong>{{ "是" if supplier and supplier.has_deep_factory_inspection else "否" }}</strong></p>
+                                <p><span>OEM / LOGO</span><strong>{{ "支持" if product.support_oem else "不支持" }} / {{ "支持" if product.support_logo_custom else "不支持" }}</strong></p>
+                            </div>
+                            <div>
+                                <h3>商品数据</h3>
+                                <p><span>销量</span><strong>{{ product.sales or "-" }}</strong></p>
+                                <p><span>收藏人数</span><strong>{{ product.favorite_count or 0 }}</strong></p>
+                                <p><span>评价数量</span><strong>{{ product.review_count or 0 }}</strong></p>
+                                <p><span>好评率</span><strong>{{ "%.0f"|format((product.positive_rate or 0) * 100) }}%</strong></p>
+                                <p><span>活跃度</span><strong>{{ "高" if product.sales_growth_rate and product.sales_growth_rate > 0.2 else "稳定" }}</strong></p>
+                            </div>
+                            <div>
+                                <h3>物流履约</h3>
+                                <p><span>发货速度</span><strong>{{ "48小时内" if supplier and supplier.ships_in_48h else "待确认" }}</strong></p>
+                                <p><span>48小时发货</span><strong>{{ "是" if supplier and supplier.ships_in_48h else "否" }}</strong></p>
+                                <p><span>库存状态</span><strong>{{ product.stock_status or "-" }}</strong></p>
+                                <p><span>售后能力</span><strong>{{ "较强" if supplier and supplier.shop_rating and supplier.shop_rating >= 4.5 else "待验证" }}</strong></p>
+                                <p><span>运费</span><strong>¥{{ "%.2f"|format(product.shipping_fee or 0) }} / {{ "包邮" if product.free_shipping else "不包邮" }}</strong></p>
+                            </div>
+                        </div>
+                        <div class="market-detail-panel" data-market-detail data-product-id="{{ product.id }}">
+                            <div class="market-detail-head">
+                                <div>
+                                    <h3>市场价格分析</h3>
+                                    <p>同款匹配优先采用图片相似度，价格仅参考各平台搜索结果前三条可信商品。</p>
+                                </div>
+                                <span class="market-competition {{ market.competitiveness_class if market else 'unknown' }}" data-market-competition>
+                                    {{ market.competitiveness_label if market else "未匹配到可信同款" }}
+                                </span>
+                            </div>
+                            <div class="market-platform-grid">
+                                {% if market %}
+                                    {% for platform in market.platforms %}
+                                    <div class="market-platform-card" data-platform-card="{{ platform.code }}">
+                                        <div>
+                                            <span>{{ platform.display_name }}前三价</span>
+                                            <strong data-platform-prices>
+                                                {% if platform.price_samples %}
+                                                    {% for price in platform.price_samples[:3] %}{{ price | money_or_dash }}{% if not loop.last %} / {% endif %}{% endfor %}
+                                                {% else %}
+                                                    -- / -- / --
+                                                {% endif %}
+                                            </strong>
+                                        </div>
+                                        <a href="{{ platform.search_url }}" target="_blank" rel="noopener noreferrer">
+                                            打开{{ platform.display_name }}同款搜索
+                                        </a>
+                                        <small data-platform-message>{{ platform.message }}</small>
+                                    </div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <div class="market-profit-grid">
+                                <p><span>采购价</span><strong>¥{{ "%.2f"|format(product.purchase_price or product.price|float(0)) }}</strong></p>
+                                <p><span>淘宝前三价</span><strong data-market-detail-platform-prices="taobao">-- / -- / --</strong></p>
+                                <p><span>抖音前三价</span><strong data-market-detail-platform-prices="douyin">-- / -- / --</strong></p>
+                                <p><span>建议售价</span><strong>¥{{ "%.2f"|format(product.suggested_price or 0) }}</strong></p>
+                                <p><span>预计利润</span><strong>¥{{ "%.2f"|format(score.estimated_profit or 0) }}</strong></p>
+                                <p><span>利润率</span><strong>{{ "%.0f"|format(roi_percent) }}%</strong></p>
+                                <p><span>ROI</span><strong>{{ "%.1f"|format(score.roi or 0) }}</strong></p>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="empty-cell">暂无推荐结果</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="image-modal" id="image-modal" aria-hidden="true">
+    <div class="image-modal-panel">
+        <button class="image-modal-close" type="button" aria-label="关闭">×</button>
+        <img src="" alt="商品大图" id="image-modal-img">
+        <div id="image-modal-title"></div>
+    </div>
+</div>
+
+<script>
+    const taskId = "{{ task.id }}";
+    const initialStatus = "{{ task.status }}";
+    const refreshWhenDone = initialStatus !== "done" && initialStatus !== "failed";
+    const statusIndex = {
+        pending: -1,
+        collecting: 0,
+        deduping: 1,
+        enriching: 2,
+        scoring: 3,
+        recommending: 3,
+        reporting: 4,
+        done: 5,
+        failed: -1,
+    };
+    const statusText = {
+        pending: "等待开始",
+        collecting: "采集中",
+        deduping: "去重中",
+        enriching: "采集中",
+        scoring: "评分中",
+        recommending: "推荐中",
+        reporting: "生成中",
+        done: "已完成",
+        failed: "失败",
+    };
+
+    function updatePipeline(status) {
+        const activeIndex = statusIndex[status] ?? -1;
+        document.querySelectorAll("#pipeline [data-step]").forEach((item, index) => {
+            const label = item.querySelector("span");
+            item.classList.remove("done", "active", "failed");
+
+            if (status === "failed") {
+                item.classList.add(index === 0 ? "failed" : "");
+                label.textContent = index === 0 ? "失败" : "等待";
+                return;
+            }
+
+            if (status === "done" || index < activeIndex) {
+                item.classList.add("done");
+                label.textContent = "已完成";
+                return;
+            }
+
+            if (index === activeIndex) {
+                item.classList.add("active");
+                label.textContent = statusText[status] || "进行中";
+                return;
+            }
+
+            label.textContent = "等待";
+        });
+
+        document.getElementById("progress-eta").textContent = status === "done"
+            ? "分析完成"
+            : status === "failed"
+                ? "任务失败"
+                : "正在处理，请稍候";
+    }
+
+    async function pollSelectionTask() {
+        const response = await fetch(`/api/selection-tasks/${taskId}`);
+        const data = await response.json();
+        updatePipeline(data.status);
+
+        if (data.status === "done" || data.status === "failed") {
+            window.location.reload();
+            return;
+        }
+
+        setTimeout(pollSelectionTask, 1200);
+    }
+
+    function getMainRows() {
+        return Array.from(document.querySelectorAll(".analysis-main-row"));
+    }
+
+    function applyClientFilters() {
+        const query = document.getElementById("result-search").value.trim().toLowerCase();
+        const level = document.getElementById("level-filter").value;
+        getMainRows().forEach((row) => {
+            const detail = row.nextElementSibling;
+            const text = row.dataset.text.toLowerCase();
+            const matchesText = !query || text.includes(query);
+            const matchesLevel = !level || row.dataset.level === level;
+            const visible = matchesText && matchesLevel;
+            row.hidden = !visible;
+            detail.hidden = !visible || !detail.classList.contains("open");
+        });
+    }
+
+    function applySort() {
+        const mode = document.getElementById("sort-filter").value;
+        const tbody = document.querySelector("#analysis-table tbody");
+        const pairs = getMainRows().map((row) => [row, row.nextElementSibling]);
+        pairs.sort((a, b) => {
+            if (mode === "rank") {
+                return Number(a[0].dataset.rank) - Number(b[0].dataset.rank);
+            }
+            return Number(b[0].dataset[mode]) - Number(a[0].dataset[mode]);
+        });
+        pairs.forEach(([row, detail]) => {
+            tbody.appendChild(row);
+            tbody.appendChild(detail);
+        });
+        applyClientFilters();
+    }
+
+    function exportSelectedRows() {
+        const checked = Array.from(document.querySelectorAll(".result-checkbox:checked"));
+        const rows = checked.map((checkbox) => {
+            const row = checkbox.closest(".analysis-main-row");
+            return [
+                row.querySelector(".analysis-product-copy strong").textContent.trim(),
+                row.dataset.score,
+                row.dataset.level,
+                row.dataset.roi,
+                row.dataset.profit,
+                row.querySelector(".supplier-score strong").textContent.trim(),
+            ];
+        });
+        if (!rows.length) {
+            return;
+        }
+        const csv = [["商品", "AI Score", "推荐等级", "ROI", "预计利润", "Supplier Score"], ...rows]
+            .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+        const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `ai-selection-task-${taskId}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function batchAddSelectedRows() {
+        const checked = Array.from(document.querySelectorAll(".result-checkbox:checked"));
+        for (const checkbox of checked) {
+            const formData = new FormData();
+            formData.append("task_id", checkbox.dataset.taskId);
+            await fetch(`/products/add-from-ai/${checkbox.dataset.productId}`, {
+                method: "POST",
+                body: formData,
+            });
+        }
+    }
+
+    function formatMoney(value) {
+        return value === null || value === undefined ? "--" : `¥${Number(value).toFixed(2)}`;
+    }
+
+    function setCompetitionClass(element, className) {
+        element.classList.remove("good", "neutral", "bad", "unknown");
+        element.classList.add(className || "unknown");
+    }
+
+    function formatPriceSamples(platform) {
+        const samples = Array.isArray(platform.price_samples) ? platform.price_samples.slice(0, 3) : [];
+        while (samples.length < 3) {
+            samples.push(null);
+        }
+        return samples.map(formatMoney).join(" / ");
+    }
+
+    function updateMarketPlatformCard(card, platform) {
+        if (!card || !platform) {
+            return;
+        }
+
+        card.querySelector("[data-platform-prices]").textContent = formatPriceSamples(platform);
+        card.querySelector("[data-platform-message]").textContent = platform.message || "";
+        const link = card.querySelector("a");
+        if (link && platform.search_url) {
+            link.href = platform.search_url;
+        }
+    }
+
+    function updateMarketPlatformSummary(summary, detail, platform) {
+        const mini = summary.querySelector(`[data-platform-mini="${platform.code}"]`);
+        if (mini) {
+            mini.textContent = `${platform.display_name} ${formatPriceSamples(platform)}`;
+        }
+
+        const detailPrices = detail.querySelector(`[data-market-detail-platform-prices="${platform.code}"]`);
+        if (detailPrices) {
+            detailPrices.textContent = formatPriceSamples(platform);
+        }
+    }
+
+    function updateMarketAnalysis(productId, analysis) {
+        const summary = document.querySelector(`[data-market-summary][data-product-id="${productId}"]`);
+        const detail = document.querySelector(`[data-market-detail][data-product-id="${productId}"]`);
+        if (!summary || !detail || !analysis) {
+            return;
+        }
+
+        const summaryCompetition = summary.querySelector(".market-competition");
+        summaryCompetition.textContent = analysis.competitiveness_label;
+        setCompetitionClass(summaryCompetition, analysis.competitiveness_class);
+        summary.querySelector("[data-market-status]").textContent = analysis.has_trusted_match
+            ? "已采集"
+            : "未匹配到可信同款";
+
+        const detailCompetition = detail.querySelector("[data-market-competition]");
+        detailCompetition.textContent = analysis.competitiveness_label;
+        setCompetitionClass(detailCompetition, analysis.competitiveness_class);
+
+        analysis.platforms.forEach((platform) => {
+            const card = detail.querySelector(`[data-platform-card="${platform.code}"]`);
+            updateMarketPlatformCard(card, platform);
+            updateMarketPlatformSummary(summary, detail, platform);
+        });
+    }
+
+    async function fetchMarketPrice(productId) {
+        const summary = document.querySelector(`[data-market-summary][data-product-id="${productId}"]`);
+        if (summary) {
+            summary.querySelector("[data-market-status]").textContent = "图片搜同款采集中";
+        }
+
+        try {
+            const response = await fetch(`/api/products/${productId}/market-price`);
+            const data = await response.json();
+            if (data.status === "ok") {
+                updateMarketAnalysis(productId, data.analysis);
+            } else if (summary) {
+                summary.querySelector("[data-market-status]").textContent = data.message || "采集失败";
+            }
+        } catch (error) {
+            if (summary) {
+                summary.querySelector("[data-market-status]").textContent = "采集失败";
+            }
+        }
+    }
+
+    async function openMarketLoginBrowser(button) {
+        const summary = button.closest("[data-market-summary]");
+        const status = summary ? summary.querySelector("[data-market-status]") : null;
+        const platform = button.dataset.marketLogin || "taobao";
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "打开中";
+        if (status) {
+            status.textContent = "正在打开淘宝登录窗口";
+        }
+
+        try {
+            const response = await fetch(`/api/market-price/login-browser?platform=${encodeURIComponent(platform)}`, { method: "POST" });
+            const data = await response.json();
+            if (status) {
+                status.textContent = data.message || "请完成淘宝登录，并保持登录窗口打开后再采集";
+            }
+        } catch (error) {
+            if (status) {
+                status.textContent = "登录窗口打开失败";
+            }
+        } finally {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+
+    async function loadMarketPrices() {
+        const productIds = Array.from(document.querySelectorAll("[data-market-summary]"))
+            .map((element) => element.dataset.productId)
+            .filter(Boolean);
+        const queue = productIds.slice(0, 10);
+        for (const productId of queue) {
+            await fetchMarketPrice(productId);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+    }
+
+    updatePipeline(initialStatus);
+    if (refreshWhenDone) {
+        setTimeout(pollSelectionTask, 800);
+    }
+
+    document.querySelectorAll(".image-preview-button").forEach((button) => {
+        button.addEventListener("click", () => {
+            document.getElementById("image-modal-img").src = button.dataset.image;
+            document.getElementById("image-modal-title").textContent = button.dataset.title || "";
+            document.getElementById("image-modal").classList.add("open");
+        });
+    });
+
+    document.querySelector(".image-modal-close").addEventListener("click", () => {
+        document.getElementById("image-modal").classList.remove("open");
+    });
+
+    document.querySelectorAll(".expand-row-button").forEach((button) => {
+        button.addEventListener("click", () => {
+            const detailRow = button.closest("tr").nextElementSibling;
+            detailRow.classList.toggle("open");
+            detailRow.hidden = !detailRow.classList.contains("open");
+            button.textContent = detailRow.classList.contains("open") ? "收起" : "展开";
+        });
+    });
+
+    document.querySelectorAll("[data-market-fetch]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            button.disabled = true;
+            button.textContent = "采集中";
+            await fetchMarketPrice(button.dataset.marketFetch);
+            button.disabled = false;
+            button.textContent = "重新采集";
+        });
+    });
+
+    document.querySelectorAll("[data-market-login]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            await openMarketLoginBrowser(button);
+        });
+    });
+
+    document.getElementById("result-search").addEventListener("input", applyClientFilters);
+    document.getElementById("level-filter").addEventListener("change", applyClientFilters);
+    document.getElementById("sort-filter").addEventListener("change", applySort);
+    document.getElementById("batch-export-button").addEventListener("click", exportSelectedRows);
+    document.getElementById("batch-add-button").addEventListener("click", batchAddSelectedRows);
+    document.getElementById("select-all-results").addEventListener("change", (event) => {
+        document.querySelectorAll(".result-checkbox").forEach((checkbox) => {
+            checkbox.checked = event.target.checked;
+        });
+    });
+
+    document.querySelectorAll(".analysis-detail-row").forEach((row) => {
+        row.hidden = true;
+    });
+</script>
+{% else %}
+<section class="os-card empty-cell">任务不存在</section>
+{% endif %}
+{% endblock %}

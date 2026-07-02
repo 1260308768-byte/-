@@ -1,0 +1,150 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "dashboard" %}
+
+{% block title %}工作台 - AI Commerce OS{% endblock %}
+{% block page_pill %}① Dashboard（工作台）{% endblock %}
+
+{% block content %}
+<section class="dashboard-welcome">
+    <div>
+        <h1>欢迎回来，Demo User</h1>
+        <p>今天是 AI 选品工作台，快速查看商品表现与评分结果。</p>
+    </div>
+    <div class="date-chip">2025-05-21 → 2025-05-28</div>
+</section>
+
+<section class="metric-grid">
+    <div class="metric-card">
+        <span>AI评分商品</span>
+        <strong>{{ dashboard.total_products }}</strong>
+        <small>较上周 ↑ 16.5%</small>
+    </div>
+    <div class="metric-card">
+        <span>推荐商品</span>
+        <strong>{{ dashboard.top_count }}</strong>
+        <small>Top 推荐池</small>
+    </div>
+    <div class="metric-card">
+        <span>供应商数量</span>
+        <strong>{{ dashboard.total_suppliers }}</strong>
+        <small>店铺去重后</small>
+    </div>
+    <div class="metric-card">
+        <span>平均 ROI</span>
+        <strong>{{ dashboard.avg_roi }}</strong>
+        <small>Top 商品均值</small>
+    </div>
+</section>
+
+<section class="dashboard-grid">
+    <div class="os-card chart-card">
+        <div class="card-head">
+            <h2>AI Score 趋势</h2>
+            <span>平均分 / 最高分</span>
+        </div>
+        <div class="line-chart">
+            <svg viewBox="0 0 620 240" role="img" aria-label="AI Score 趋势图">
+                <polyline points="20,160 80,148 140,132 200,146 260,120 320,108 380,90 440,104 500,72 580,82" fill="none" stroke="#6f63ff" stroke-width="4" stroke-linecap="round"/>
+                <polyline points="20,182 80,174 140,168 200,172 260,164 320,158 380,140 440,132 500,116 580,124" fill="none" stroke="#2f49d8" stroke-width="4" stroke-linecap="round"/>
+                {% for x in [20,80,140,200,260,320,380,440,500,580] %}
+                <circle cx="{{ x }}" cy="160" r="4" fill="#6f63ff"/>
+                {% endfor %}
+            </svg>
+        </div>
+    </div>
+    <div class="os-card donut-card">
+        <div class="card-head">
+            <h2>商品分类占比</h2>
+            <span>{{ dashboard.total_products }} 商品总数</span>
+        </div>
+        <div class="donut-wrap">
+            <div class="donut-chart"><strong>{{ dashboard.total_products }}</strong><span>商品总数</span></div>
+            <ul class="legend-list">
+                <li><i style="background:#6f63ff"></i> 家居收纳 28%</li>
+                <li><i style="background:#5cc9a7"></i> 厨房用品 22%</li>
+                <li><i style="background:#ffcf5c"></i> 桌面整理 18%</li>
+                <li><i style="background:#ff6f61"></i> 跨境热销 12%</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="os-card">
+    <div class="card-head">
+        <h2>AI选品</h2>
+        <a href="/ai-score-config">配置中心 ›</a>
+    </div>
+    <form action="/ai-selection/tasks" method="post" class="selection-form">
+        <label>
+            <span>关键词</span>
+            <input name="keyword" value="收纳盒" required>
+        </label>
+        <label>
+            <span>采集页数</span>
+            <input name="pages" type="number" min="1" max="10" value="10">
+        </label>
+        <label class="price-range-filter">
+            <span>采购价区间</span>
+            <div class="range-inputs">
+                <input name="min_purchase_price" type="number" min="0" step="0.01" placeholder="最低价">
+                <i></i>
+                <input name="max_purchase_price" type="number" min="0" step="0.01" placeholder="最高价">
+            </div>
+        </label>
+        <button type="submit">开始分析</button>
+    </form>
+</section>
+
+<section class="dashboard-grid lower-grid">
+    <div class="os-card">
+        <div class="card-head">
+            <h2>最新推荐商品</h2>
+            {% if latest_task %}<a href="/ai-selection/tasks/{{ latest_task.id }}">查看全部 ›</a>{% endif %}
+        </div>
+        <div class="table-responsive">
+            <table class="os-table">
+                <thead>
+                    <tr>
+                        <th>商品</th>
+                        <th>AI Score</th>
+                        <th>利润率</th>
+                        <th>供应商</th>
+                        <th>更新时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recommendations[:5] %}
+                    <tr>
+                        <td>{{ row.product.title }}</td>
+                        <td class="score-green">{{ "%.0f"|format(row.score_record.ai_score) }}</td>
+                        <td>{{ "%.0f"|format((row.score_record.roi or 0) * 100) }}%</td>
+                        <td>{{ row.supplier.shop_name if row.supplier else "-" }}</td>
+                        <td>{{ row.recommendation.created_at.strftime("%H:%M") }}</td>
+                        <td><a class="mini-link" href="/ai-selection/tasks/{{ row.recommendation.task_id }}">查看</a></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="empty-cell">暂无推荐数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="os-card">
+        <div class="card-head">
+            <h2>最近任务</h2>
+        </div>
+        <div class="task-list">
+            {% for task in tasks[:5] %}
+            <a href="/ai-selection/tasks/{{ task.id }}">
+                <span>{{ task.keyword }}</span>
+                <strong>{{ task.deduped_products }} 个商品</strong>
+            </a>
+            {% else %}
+            <div class="empty-cell">暂无任务</div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

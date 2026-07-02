@@ -1,0 +1,47 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "selection" %}
+
+{% block title %}1688商品采集 - AI Commerce OS{% endblock %}
+{% block page_pill %}📦 AI选品{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <h1>1688商品采集</h1>
+        <p>输入关键词，采集前 30 个 1688 商品并保存到数据库。</p>
+    </div>
+    <a class="ghost-button compact" href="/products">查看商品库</a>
+</section>
+
+<section class="os-card form-card">
+    <form action="/crawl" method="post" id="crawl-form" class="unified-form">
+        <label>
+            <span>搜索关键词</span>
+            <input
+                type="text"
+                id="keyword"
+                name="keyword"
+                value="收纳盒"
+                placeholder="例如：收纳盒"
+                required
+            >
+        </label>
+        <div class="form-actions">
+            <button type="submit" id="crawl-submit">开始采集</button>
+            <a class="ghost-button" href="/products">查看商品列表</a>
+        </div>
+    </form>
+</section>
+
+<script>
+    const crawlForm = document.getElementById("crawl-form");
+    const crawlSubmit = document.getElementById("crawl-submit");
+
+    // 表单提交后立即切换按钮状态，让用户看到采集已经开始。
+    crawlForm.addEventListener("submit", () => {
+        crawlSubmit.disabled = true;
+        crawlSubmit.textContent = "采集中";
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.env
+.env.production
+.venv/
+venv/
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+logs/uvicorn.*.log
+tmp/*
+!tmp/.gitkeep
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

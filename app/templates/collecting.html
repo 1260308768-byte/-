@@ -1,0 +1,36 @@
+{% extends "ai_base.html" %}
+
+{% set active_nav = "selection" %}
+
+{% block title %}采集中 - AI Commerce OS{% endblock %}
+{% block page_pill %}📦 AI选品{% endblock %}
+
+{% block content %}
+<section class="loading-card">
+    <div class="loading-spinner" role="status" aria-label="采集中"></div>
+    <h1>采集中</h1>
+</section>
+
+<script>
+    const taskId = "{{ task_id }}";
+
+    // 定时查询后台采集任务，完成后直接跳转到商品结果列表。
+    async function pollTask() {
+        try {
+            const response = await fetch(`/api/crawl-tasks/${taskId}`);
+            const data = await response.json();
+
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+                return;
+            }
+        } catch (error) {
+            console.error("采集任务状态查询失败", error);
+        }
+
+        setTimeout(pollTask, 1500);
+    }
+
+    setTimeout(pollTask, 1000);
+</script>
+{% endblock %}

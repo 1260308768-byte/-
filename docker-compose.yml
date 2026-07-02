@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    container_name: 1688-product-finder
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # 持久化 SQLite 数据库和日志文件。
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
