@@ -49,6 +49,7 @@
                 <div></div>
                 <div class="top-actions">
                     <span id="worker-client-badge" title="采集客户端 ID"></span>
+                    <a id="worker-client-download" class="worker-download-button" href="#">下载采集客户端</a>
                     <span>🔍</span>
                     <span>🔔</span>
                     <span>?</span>
@@ -96,6 +97,11 @@
         const workerBadge = document.getElementById("worker-client-badge");
         if (workerBadge) {
             workerBadge.textContent = `采集端 ${getWorkerClientId()}`;
+        }
+
+        const workerDownload = document.getElementById("worker-client-download");
+        if (workerDownload) {
+            workerDownload.href = appendWorkerClientId("/worker-client/download");
         }
     </script>
 </body>

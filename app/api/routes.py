@@ -1,9 +1,12 @@
 """FastAPI 路由定义模块。"""
 
+import io
 import json
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
 from urllib.parse import unquote
+import zipfile
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -13,6 +16,7 @@ from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 
 from app.database.db import get_db
+from app.config.settings import BASE_DIR
 from app.config.settings import get_settings
 from app.crawler.product_crawler import CrawledProduct
 from app.models.ai_selection import SelectionTask
@@ -880,6 +884,48 @@ def health_check() -> dict[str, str]:
     }
 
 
+@router.get("/worker-client/download")
+def download_worker_client_package(
+    request: Request,
+    worker_client_id: str = Query(...),
+) -> Response:
+    """下载带有当前采集端 ID 配置的采集客户端压缩包。"""
+    safe_client_id = _normalize_worker_client_id_for_download(worker_client_id)
+    if not safe_client_id:
+        raise HTTPException(status_code=400, detail="采集端 ID 不能为空")
+
+    package_dir = BASE_DIR / "dist" / "AICommerceWorker"
+    package_zip = BASE_DIR / "dist" / "AICommerceWorker.zip"
+    if not package_dir.exists() and not package_zip.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="采集客户端文件不存在，请先在服务器生成或上传 AICommerceWorker",
+        )
+
+    env_content = _build_worker_client_env(
+        request=request,
+        worker_client_id=safe_client_id,
+    )
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        if package_dir.exists():
+            _write_worker_client_dir_to_zip(archive, package_dir)
+        else:
+            _write_worker_client_zip_to_zip(archive, package_zip)
+
+        archive.writestr(".env", env_content)
+        archive.writestr(".env.example", env_content)
+
+    filename = f"AICommerceWorker-{safe_client_id}.zip"
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
 def _build_dashboard_summary(
     latest_task: SelectionTask | None,
     recommendations: list[dict[str, Any]],
@@ -944,6 +990,89 @@ def _parse_optional_price(value: str | None) -> float | None:
     except ValueError:
         return None
     return price if price >= 0 else None
+
+
+def _normalize_worker_client_id_for_download(value: str | None) -> str:
+    """规范化下载用采集端 ID，避免文件名和配置内容出现危险字符。"""
+    text = (value or "").strip().lower()
+    safe_chars = []
+    for char in text:
+        if char.isalnum() or char in {"-", "_"}:
+            safe_chars.append(char)
+        else:
+            safe_chars.append("-")
+    return "".join(safe_chars).strip("-_")
+
+
+def _build_worker_client_env(request: Request, worker_client_id: str) -> str:
+    """根据当前访问地址和采集端 ID 生成采集客户端 .env 内容。"""
+    settings = get_settings()
+    server_url = str(request.base_url).rstrip("/")
+    worker_token = settings.worker_token or ""
+    lines = [
+        f"WORKER_SERVER_URL={server_url}",
+        f"WORKER_TOKEN={worker_token}",
+        f"WORKER_CLIENT_ID={worker_client_id}",
+        "WORKER_POLL_INTERVAL_SECONDS=5",
+        "",
+        "CRAWLER_HEADLESS=false",
+        "CRAWLER_MANUAL_MODE=true",
+        "CRAWLER_USE_DEFAULT_BROWSER=true",
+        "CRAWLER_BROWSER_EXECUTABLE_PATH=",
+        "CRAWLER_BROWSER_CHANNEL=",
+        "CRAWLER_TIMEOUT_MS=180000",
+        "CRAWLER_MANUAL_WAIT_MS=180000",
+        "CRAWLER_USER_DATA_DIR=data/playwright_profile",
+        "",
+        "CRAWLER_CDP_URL=",
+        "CRAWLER_AUTO_START_CDP=true",
+        "CRAWLER_CDP_PORT=9223",
+        "CRAWLER_CDP_USER_DATA_DIR=data/chrome_debug_profile",
+        "CRAWLER_CDP_BACKGROUND=true",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _should_skip_worker_client_zip_entry(name: str) -> bool:
+    """判断采集客户端压缩包内的文件是否需要跳过。"""
+    normalized = name.replace("\\", "/").lstrip("/")
+    lower_name = normalized.lower()
+    if not normalized:
+        return True
+    if lower_name in {".env", ".env.example"}:
+        return True
+    ignored_prefixes = ("data/", "logs/", "tmp/", "__pycache__/")
+    ignored_parts = ("/__pycache__/",)
+    return lower_name.startswith(ignored_prefixes) or any(
+        part in lower_name for part in ignored_parts
+    )
+
+
+def _write_worker_client_dir_to_zip(
+    archive: zipfile.ZipFile,
+    package_dir: Path,
+) -> None:
+    """把采集客户端目录写入下载压缩包，并排除本地状态文件。"""
+    for file_path in package_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        archive_name = file_path.relative_to(package_dir).as_posix()
+        if _should_skip_worker_client_zip_entry(archive_name):
+            continue
+        archive.write(file_path, archive_name)
+
+
+def _write_worker_client_zip_to_zip(
+    archive: zipfile.ZipFile,
+    package_zip: Path,
+) -> None:
+    """把已有采集客户端压缩包复制进新压缩包，并替换配置文件。"""
+    with zipfile.ZipFile(package_zip, "r") as source_zip:
+        for item in source_zip.infolist():
+            if item.is_dir() or _should_skip_worker_client_zip_entry(item.filename):
+                continue
+            archive.writestr(item, source_zip.read(item.filename))
 
 
 def _verify_worker_token(token: str | None) -> None:

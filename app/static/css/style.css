@@ -324,6 +324,26 @@ button,
     white-space: nowrap;
 }
 
+.worker-download-button {
+    min-height: 32px;
+    padding: 7px 12px;
+    border: 1px solid #111827;
+    border-radius: 999px;
+    color: #ffffff;
+    background: #111827;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.worker-download-button:hover {
+    color: #ffffff;
+    background: #0f172a;
+}
+
 .mini-avatar {
     width: 24px;
     height: 24px;
