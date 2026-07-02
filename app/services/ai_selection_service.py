@@ -106,33 +106,7 @@ async def _execute_ai_selection_task(db: Session, task: SelectionTask) -> None:
             pages=task.total_pages,
         )
 
-        task.status = "deduping"
-        task.total_products = len(crawled_products)
-        db.commit()
-
-        products = _save_products_and_suppliers(db, task, crawled_products)
-
-        task.status = "enriching"
-        task.deduped_products = len(products)
-        task.deduped_suppliers = _count_task_suppliers(db, task.id)
-        db.commit()
-
-        task.status = "scoring"
-        db.commit()
-        score_records = score_task_products(db, task.id)
-
-        task.status = "recommending"
-        db.commit()
-        build_recommendations(db, task.id, top_count=task.top_count)
-
-        task.status = "reporting"
-        db.commit()
-        build_selection_report(db, task.id)
-
-        task.status = "done"
-        task.finished_at = datetime.utcnow()
-        db.commit()
-        logger.info("结束 AI 选品任务，任务ID：%s，推荐数量：%s", task.id, len(score_records))
+        _complete_ai_selection_task_with_products(db, task, crawled_products)
     except Exception as exc:
         logger.exception("AI 选品任务异常，任务ID：%s", task.id)
         task.status = "failed"
@@ -141,6 +115,98 @@ async def _execute_ai_selection_task(db: Session, task: SelectionTask) -> None:
         db.commit()
     finally:
         db.refresh(task)
+
+
+def complete_ai_selection_task_from_worker(
+    db: Session,
+    task_id: int,
+    crawled_products: list[CrawledProduct],
+) -> SelectionTask:
+    """使用本地采集 Worker 回传的数据完成服务器端评分和推荐流程。"""
+    task = db.get(SelectionTask, task_id)
+    if not task:
+        raise ValueError("任务不存在")
+
+    try:
+        _complete_ai_selection_task_with_products(db, task, crawled_products)
+    except Exception as exc:
+        logger.exception("Worker 回传任务处理异常，任务ID：%s", task.id)
+        task.status = "failed"
+        task.error_message = str(exc)
+        task.finished_at = datetime.utcnow()
+        db.commit()
+    db.refresh(task)
+    return task
+
+
+def fail_ai_selection_task_from_worker(
+    db: Session,
+    task_id: int,
+    error_message: str,
+) -> SelectionTask:
+    """由本地采集 Worker 标记任务失败。"""
+    task = db.get(SelectionTask, task_id)
+    if not task:
+        raise ValueError("任务不存在")
+
+    task.status = "failed"
+    task.error_message = error_message[:2000]
+    task.finished_at = datetime.utcnow()
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def claim_next_worker_task(db: Session) -> SelectionTask | None:
+    """领取一个等待本地 Worker 采集的 AI 选品任务。"""
+    task = db.scalar(
+        select(SelectionTask)
+        .where(SelectionTask.status == "pending")
+        .order_by(SelectionTask.created_at.asc())
+    )
+    if not task:
+        return None
+
+    task.status = "collecting"
+    task.started_at = datetime.utcnow()
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+def _complete_ai_selection_task_with_products(
+    db: Session,
+    task: SelectionTask,
+    crawled_products: list[CrawledProduct],
+) -> None:
+    """基于已采集商品执行去重、评分、推荐和报告生成。"""
+    task.status = "deduping"
+    task.total_products = len(crawled_products)
+    db.commit()
+
+    products = _save_products_and_suppliers(db, task, crawled_products)
+
+    task.status = "enriching"
+    task.deduped_products = len(products)
+    task.deduped_suppliers = _count_task_suppliers(db, task.id)
+    db.commit()
+
+    task.status = "scoring"
+    db.commit()
+    score_records = score_task_products(db, task.id)
+
+    task.status = "recommending"
+    db.commit()
+    build_recommendations(db, task.id, top_count=task.top_count)
+
+    task.status = "reporting"
+    db.commit()
+    build_selection_report(db, task.id)
+
+    task.status = "done"
+    task.finished_at = datetime.utcnow()
+    db.commit()
+    logger.info("结束 AI 选品任务，任务ID：%s，推荐数量：%s", task.id, len(score_records))
 
 
 def get_selection_task(db: Session, task_id: int) -> SelectionTask | None:

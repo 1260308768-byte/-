@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import quote_plus
 from urllib.parse import unquote
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -13,8 +13,13 @@ from urllib.request import Request as UrlRequest
 from urllib.request import urlopen
 
 from app.database.db import get_db
+from app.config.settings import get_settings
+from app.crawler.product_crawler import CrawledProduct
 from app.models.ai_selection import SelectionTask
+from app.services.ai_selection_service import claim_next_worker_task
+from app.services.ai_selection_service import complete_ai_selection_task_from_worker
 from app.services.ai_selection_service import create_selection_task
+from app.services.ai_selection_service import fail_ai_selection_task_from_worker
 from app.services.ai_selection_service import get_selection_task
 from app.services.ai_selection_service import get_task_recommendations
 from app.services.ai_selection_service import get_task_report
@@ -149,7 +154,8 @@ async def create_ai_selection_task(
         min_purchase_price=safe_min_price,
         max_purchase_price=safe_max_price,
     )
-    background_tasks.add_task(process_ai_selection_task, task.id)
+    if not get_settings().remote_worker_enabled:
+        background_tasks.add_task(process_ai_selection_task, task.id)
     return RedirectResponse(url=f"/ai-selection/tasks/{task.id}", status_code=303)
 
 
@@ -353,6 +359,72 @@ def read_selection_task_api(
         "deduped_products": task.deduped_products,
         "deduped_suppliers": task.deduped_suppliers,
         "top_count": task.top_count,
+        "error_message": task.error_message,
+    }
+
+
+@router.get("/api/worker/tasks/next")
+def claim_worker_task_api(
+    x_worker_token: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """本地采集 Worker 领取一个待采集任务。"""
+    _verify_worker_token(x_worker_token)
+    task = claim_next_worker_task(db)
+    if not task:
+        return {"status": "empty"}
+
+    return {
+        "status": "ok",
+        "task": {
+            "id": task.id,
+            "keyword": task.keyword,
+            "total_pages": task.total_pages,
+            "top_count": task.top_count,
+            "min_purchase_price": task.min_purchase_price,
+            "max_purchase_price": task.max_purchase_price,
+        },
+    }
+
+
+@router.post("/api/worker/tasks/{task_id}/complete")
+def complete_worker_task_api(
+    task_id: int,
+    payload: dict[str, Any] = Body(...),
+    x_worker_token: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """接收本地采集 Worker 回传的商品数据，并完成评分推荐。"""
+    _verify_worker_token(x_worker_token)
+    products_payload = payload.get("products", [])
+    if not isinstance(products_payload, list):
+        raise HTTPException(status_code=400, detail="products 必须是列表")
+
+    crawled_products = [_build_crawled_product(item) for item in products_payload]
+    task = complete_ai_selection_task_from_worker(db, task_id, crawled_products)
+    return {
+        "status": task.status,
+        "task_id": task.id,
+        "total_products": task.total_products,
+        "deduped_products": task.deduped_products,
+        "error_message": task.error_message,
+    }
+
+
+@router.post("/api/worker/tasks/{task_id}/fail")
+def fail_worker_task_api(
+    task_id: int,
+    payload: dict[str, Any] = Body(...),
+    x_worker_token: str | None = Header(None),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """接收本地采集 Worker 的失败状态。"""
+    _verify_worker_token(x_worker_token)
+    error_message = str(payload.get("error_message") or "本地采集 Worker 执行失败")
+    task = fail_ai_selection_task_from_worker(db, task_id, error_message)
+    return {
+        "status": task.status,
+        "task_id": task.id,
         "error_message": task.error_message,
     }
 
@@ -684,3 +756,33 @@ def _csv_cell(value: Any | None) -> str:
     text = "" if value is None else str(value)
     escaped = text.replace('"', '""')
     return f'"{escaped}"'
+
+
+def _verify_worker_token(token: str | None) -> None:
+    """校验本地采集 Worker 的访问令牌。"""
+    settings = get_settings()
+    if not settings.remote_worker_enabled:
+        raise HTTPException(status_code=403, detail="远程 Worker 模式未启用")
+    if not settings.worker_token:
+        raise HTTPException(status_code=503, detail="服务器未配置 WORKER_TOKEN")
+    if token != settings.worker_token:
+        raise HTTPException(status_code=401, detail="Worker Token 无效")
+
+
+def _build_crawled_product(item: Any) -> CrawledProduct:
+    """把 Worker 回传的字典转换为采集商品结构。"""
+    if not isinstance(item, dict):
+        raise HTTPException(status_code=400, detail="商品数据格式错误")
+
+    return CrawledProduct(
+        keyword=str(item.get("keyword") or ""),
+        title=item.get("title"),
+        price=item.get("price"),
+        sales=item.get("sales"),
+        shop_name=item.get("shop_name"),
+        shop_level=item.get("shop_level"),
+        province=item.get("province"),
+        support_drop_shipping=bool(item.get("support_drop_shipping", False)),
+        image_url=item.get("image_url"),
+        product_url=item.get("product_url"),
+    )

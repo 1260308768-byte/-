@@ -108,6 +108,14 @@ class Settings:
         os.getenv("AI_SELECTION_DEMO_FALLBACK", "false").lower() == "true"
     )
 
+    # 远程 Worker 模式：服务器只创建任务，本地采集 Worker 轮询并回传结果。
+    remote_worker_enabled: bool = (
+        os.getenv("REMOTE_WORKER_ENABLED", "false").lower() == "true"
+    )
+
+    # 本地采集 Worker 调用服务器接口时使用的简单令牌。
+    worker_token: str | None = os.getenv("WORKER_TOKEN") or None
+
 
 def get_settings() -> Settings:
     """获取应用配置。"""

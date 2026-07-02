@@ -176,6 +176,38 @@ tmp/
 
 注意：线上 Docker 默认使用无头浏览器采集。1688、淘宝等平台可能触发登录、验证码或风控；这类登录态更适合在本地手动浏览器模式调试，线上环境建议先作为后台系统和结果展示服务运行。
 
+### 本地采集 Worker 模式
+
+如果服务器 IP 被 1688 风控，可以让服务器只负责网站和任务队列，本地电脑负责真实采集。
+
+服务器 `.env` 开启：
+
+```text
+REMOTE_WORKER_ENABLED=true
+WORKER_TOKEN=替换成一段足够长的随机字符串
+```
+
+本地电脑 `.env` 配置：
+
+```text
+WORKER_SERVER_URL=http://服务器公网IP:8000
+WORKER_TOKEN=和服务器一致的随机字符串
+CRAWLER_HEADLESS=false
+CRAWLER_MANUAL_MODE=true
+CRAWLER_BROWSER_CHANNEL=msedge
+CRAWLER_TIMEOUT_MS=180000
+CRAWLER_MANUAL_WAIT_MS=180000
+CRAWLER_USER_DATA_DIR=data/playwright_profile
+```
+
+本地启动 Worker：
+
+```bash
+python scripts/local_worker.py
+```
+
+之后用户在公网网站创建 AI 选品任务，服务器会显示等待/采集中；本地 Worker 领取任务、使用本地浏览器采集 1688，并把结果回传服务器进行去重、评分、推荐和报告生成。
+
 ## 环境变量
 
 ```text
@@ -190,6 +222,10 @@ CRAWLER_MANUAL_MODE=false
 CRAWLER_MANUAL_WAIT_MS=60000
 CRAWLER_USER_DATA_DIR=data/playwright_profile
 CRAWLER_CDP_URL=
+REMOTE_WORKER_ENABLED=false
+WORKER_SERVER_URL=http://127.0.0.1:8000
+WORKER_TOKEN=change-me
+WORKER_POLL_INTERVAL_SECONDS=5
 ```
 
 `DATABASE_URL` 使用相对路径时，会自动按项目根目录解析。
