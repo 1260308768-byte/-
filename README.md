@@ -192,6 +192,7 @@ WORKER_TOKEN=替换成一段足够长的随机字符串
 ```text
 WORKER_SERVER_URL=http://服务器公网IP:8000
 WORKER_TOKEN=和服务器一致的随机字符串
+WORKER_CLIENT_ID=网页右上角显示的采集端 ID
 CRAWLER_HEADLESS=false
 CRAWLER_MANUAL_MODE=true
 CRAWLER_BROWSER_CHANNEL=msedge
@@ -199,6 +200,8 @@ CRAWLER_TIMEOUT_MS=180000
 CRAWLER_MANUAL_WAIT_MS=180000
 CRAWLER_USER_DATA_DIR=data/playwright_profile
 ```
+
+多人使用时，每个用户都应该使用自己的 `WORKER_CLIENT_ID`。网页右上角会显示当前浏览器的采集端 ID，本地 Worker 的 `.env` 必须配置成同一个值，这样该用户创建的任务才会派发到自己的电脑。
 
 本地启动 Worker：
 
@@ -227,6 +230,7 @@ CRAWLER_CDP_URL=
 REMOTE_WORKER_ENABLED=false
 WORKER_SERVER_URL=http://127.0.0.1:8000
 WORKER_TOKEN=change-me
+WORKER_CLIENT_ID=client-demo
 WORKER_POLL_INTERVAL_SECONDS=5
 ```
 

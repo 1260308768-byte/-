@@ -36,6 +36,7 @@ def init_database() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_product_columns()
     ensure_selection_task_columns()
+    ensure_market_price_columns()
 
 
 def ensure_product_columns() -> None:
@@ -98,6 +99,7 @@ def ensure_selection_task_columns() -> None:
     required_columns = {
         "min_purchase_price": "FLOAT",
         "max_purchase_price": "FLOAT",
+        "worker_client_id": "VARCHAR(100)",
     }
 
     with engine.begin() as connection:
@@ -107,6 +109,34 @@ def ensure_selection_task_columns() -> None:
             connection.execute(
                 text(f"ALTER TABLE selection_tasks ADD COLUMN {column_name} {column_type}")
             )
+
+
+def ensure_market_price_columns() -> None:
+    """为市场价相关旧表补齐多人 Worker 路由字段。"""
+    inspector = inspect(engine)
+    table_columns = {
+        "market_price_tasks": {
+            "worker_client_id": "VARCHAR(100)",
+        },
+        "market_login_tasks": {
+            "worker_client_id": "VARCHAR(100)",
+        },
+    }
+
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        for table_name, required_columns in table_columns.items():
+            if table_name not in existing_tables:
+                continue
+            existing_columns = {
+                column["name"] for column in inspector.get_columns(table_name)
+            }
+            for column_name, column_type in required_columns.items():
+                if column_name in existing_columns:
+                    continue
+                connection.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                )
 
 
 if __name__ == "__main__":

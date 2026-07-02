@@ -31,6 +31,7 @@ load_dotenv(BASE_DIR / ".env")
 
 SERVER_URL = os.getenv("WORKER_SERVER_URL", "http://127.0.0.1:8000").rstrip("/")
 WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
+WORKER_CLIENT_ID = os.getenv("WORKER_CLIENT_ID", "").strip().lower()
 POLL_INTERVAL_SECONDS = int(os.getenv("WORKER_POLL_INTERVAL_SECONDS", "5"))
 
 
@@ -45,6 +46,8 @@ def request_json(
         "Accept": "application/json",
         "X-Worker-Token": WORKER_TOKEN,
     }
+    if WORKER_CLIENT_ID:
+        headers["X-Worker-Client-ID"] = WORKER_CLIENT_ID
     if payload is not None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers["Content-Type"] = "application/json; charset=utf-8"
@@ -213,8 +216,10 @@ async def main() -> None:
     """持续轮询服务器任务。"""
     if not WORKER_TOKEN:
         raise RuntimeError("请先在 .env 中配置 WORKER_TOKEN")
+    if not WORKER_CLIENT_ID:
+        raise RuntimeError("请先在 .env 中配置 WORKER_CLIENT_ID，例如 buyer-001")
 
-    print(f"[worker] 本地采集 Worker 已启动，服务器：{SERVER_URL}")
+    print(f"[worker] 本地采集 Worker 已启动，服务器：{SERVER_URL}，客户端：{WORKER_CLIENT_ID}")
     while True:
         try:
             handled = (

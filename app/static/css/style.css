@@ -312,6 +312,18 @@ button,
     font-size: 14px;
 }
 
+#worker-client-badge {
+    max-width: 180px;
+    padding: 5px 9px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    color: #475569;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .mini-avatar {
     width: 24px;
     height: 24px;

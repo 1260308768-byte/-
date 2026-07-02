@@ -48,6 +48,7 @@
                 <button class="icon-button" type="button">☰</button>
                 <div></div>
                 <div class="top-actions">
+                    <span id="worker-client-badge" title="采集客户端 ID"></span>
                     <span>🔍</span>
                     <span>🔔</span>
                     <span>?</span>
@@ -59,5 +60,43 @@
             </main>
         </div>
     </div>
+    <script>
+        function getWorkerClientId() {
+            const storageKey = "ai_commerce_worker_client_id";
+            let clientId = localStorage.getItem(storageKey);
+            if (!clientId) {
+                clientId = `client-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
+                localStorage.setItem(storageKey, clientId);
+            }
+            return clientId;
+        }
+
+        function appendWorkerClientId(url) {
+            const nextUrl = new URL(url, window.location.origin);
+            nextUrl.searchParams.set("worker_client_id", getWorkerClientId());
+            return `${nextUrl.pathname}${nextUrl.search}`;
+        }
+
+        window.getWorkerClientId = getWorkerClientId;
+        window.appendWorkerClientId = appendWorkerClientId;
+
+        document.querySelectorAll('form[action="/ai-selection/tasks"]').forEach((form) => {
+            form.addEventListener("submit", () => {
+                let input = form.querySelector('input[name="worker_client_id"]');
+                if (!input) {
+                    input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = "worker_client_id";
+                    form.appendChild(input);
+                }
+                input.value = getWorkerClientId();
+            });
+        });
+
+        const workerBadge = document.getElementById("worker-client-badge");
+        if (workerBadge) {
+            workerBadge.textContent = `采集端 ${getWorkerClientId()}`;
+        }
+    </script>
 </body>
 </html>

@@ -611,7 +611,7 @@
             return;
         }
 
-        const response = await fetch(`/api/products/${productId}/market-price/status`);
+        const response = await fetch(appendWorkerClientId(`/api/products/${productId}/market-price/status`));
         const data = await response.json();
         if (data.status === "ok") {
             updateMarketAnalysis(productId, data.analysis);
@@ -639,7 +639,7 @@
         }
 
         try {
-            const url = `/api/products/${productId}/market-price${refresh ? "?refresh=true" : ""}`;
+            const url = appendWorkerClientId(`/api/products/${productId}/market-price${refresh ? "?refresh=true" : ""}`);
             const response = await fetch(url);
             const data = await response.json();
             if (data.status === "ok") {
@@ -671,7 +671,10 @@
         }
 
         try {
-            const response = await fetch(`/api/market-price/login-browser?platform=${encodeURIComponent(platform)}`, { method: "POST" });
+            const response = await fetch(
+                appendWorkerClientId(`/api/market-price/login-browser?platform=${encodeURIComponent(platform)}`),
+                { method: "POST" }
+            );
             const data = await response.json();
             if (status) {
                 status.textContent = data.message || "请完成淘宝登录，并保持登录窗口打开后再采集";

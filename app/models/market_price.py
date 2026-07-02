@@ -15,6 +15,7 @@ class MarketPriceTask(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     product_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    worker_client_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -40,6 +41,7 @@ class MarketLoginTask(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     platform: Mapped[str] = mapped_column(String(50), default="taobao", nullable=False)
+    worker_client_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

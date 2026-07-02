@@ -21,6 +21,7 @@ class SelectionTask(Base):
     deduped_products: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     deduped_suppliers: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     top_count: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
+    worker_client_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     min_purchase_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     max_purchase_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

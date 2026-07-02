@@ -14,14 +14,26 @@ from app.models.market_price import MarketPriceTask
 from app.models.product import Product
 
 
+def _normalize_worker_client_id(worker_client_id: str | None) -> str | None:
+    """规范化采集客户端 ID，空值表示旧版公共队列。"""
+    normalized = (worker_client_id or "").strip().lower()
+    return normalized or None
+
+
 def get_latest_market_price_task(
     db: Session,
     product_id: int,
+    worker_client_id: str | None = None,
 ) -> MarketPriceTask | None:
     """读取商品最近一次市场价格采集任务。"""
+    normalized_client_id = _normalize_worker_client_id(worker_client_id)
+    conditions = [MarketPriceTask.product_id == product_id]
+    if normalized_client_id:
+        conditions.append(MarketPriceTask.worker_client_id == normalized_client_id)
+
     return db.scalar(
         select(MarketPriceTask)
-        .where(MarketPriceTask.product_id == product_id)
+        .where(*conditions)
         .order_by(MarketPriceTask.created_at.desc())
     )
 
@@ -30,9 +42,11 @@ def queue_market_price_task(
     db: Session,
     product: Product,
     force_refresh: bool = False,
+    worker_client_id: str | None = None,
 ) -> MarketPriceTask:
     """创建或复用一个等待本地 Worker 执行的市场价格采集任务。"""
-    latest_task = get_latest_market_price_task(db, product.id)
+    normalized_client_id = _normalize_worker_client_id(worker_client_id)
+    latest_task = get_latest_market_price_task(db, product.id, normalized_client_id)
     if (
         latest_task
         and latest_task.status in {"pending", "collecting"}
@@ -42,6 +56,7 @@ def queue_market_price_task(
 
     task = MarketPriceTask(
         product_id=product.id,
+        worker_client_id=normalized_client_id,
         status="pending",
     )
     db.add(task)
@@ -50,11 +65,21 @@ def queue_market_price_task(
     return task
 
 
-def claim_next_market_price_task(db: Session) -> tuple[MarketPriceTask, Product] | None:
+def claim_next_market_price_task(
+    db: Session,
+    worker_client_id: str | None = None,
+) -> tuple[MarketPriceTask, Product] | None:
     """领取一个等待本地 Worker 采集淘宝价格的任务。"""
+    normalized_client_id = _normalize_worker_client_id(worker_client_id)
+    conditions = [MarketPriceTask.status == "pending"]
+    if normalized_client_id:
+        conditions.append(MarketPriceTask.worker_client_id == normalized_client_id)
+    else:
+        conditions.append(MarketPriceTask.worker_client_id.is_(None))
+
     task = db.scalar(
         select(MarketPriceTask)
-        .where(MarketPriceTask.status == "pending")
+        .where(*conditions)
         .order_by(MarketPriceTask.created_at.asc())
     )
     if not task:
@@ -139,20 +164,38 @@ def build_market_worker_product_payload(product: Product) -> dict[str, Any]:
     }
 
 
-def queue_market_login_task(db: Session, platform: str) -> MarketLoginTask:
+def queue_market_login_task(
+    db: Session,
+    platform: str,
+    worker_client_id: str | None = None,
+) -> MarketLoginTask:
     """登记一个本地 Worker 打开平台登录浏览器的请求。"""
-    task = MarketLoginTask(platform=platform or "taobao", status="pending")
+    task = MarketLoginTask(
+        platform=platform or "taobao",
+        worker_client_id=_normalize_worker_client_id(worker_client_id),
+        status="pending",
+    )
     db.add(task)
     db.commit()
     db.refresh(task)
     return task
 
 
-def claim_next_market_login_task(db: Session) -> MarketLoginTask | None:
+def claim_next_market_login_task(
+    db: Session,
+    worker_client_id: str | None = None,
+) -> MarketLoginTask | None:
     """领取一个等待本地 Worker 打开登录浏览器的请求。"""
+    normalized_client_id = _normalize_worker_client_id(worker_client_id)
+    conditions = [MarketLoginTask.status == "pending"]
+    if normalized_client_id:
+        conditions.append(MarketLoginTask.worker_client_id == normalized_client_id)
+    else:
+        conditions.append(MarketLoginTask.worker_client_id.is_(None))
+
     task = db.scalar(
         select(MarketLoginTask)
-        .where(MarketLoginTask.status == "pending")
+        .where(*conditions)
         .order_by(MarketLoginTask.created_at.asc())
     )
     if not task:

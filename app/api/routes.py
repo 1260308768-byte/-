@@ -145,6 +145,7 @@ async def create_ai_selection_task(
     pages: int = Form(10),
     min_purchase_price: float | None = Form(None),
     max_purchase_price: float | None = Form(None),
+    worker_client_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     """创建并执行 AI 选品任务。"""
@@ -164,6 +165,7 @@ async def create_ai_selection_task(
         top_count=20,
         min_purchase_price=safe_min_price,
         max_purchase_price=safe_max_price,
+        worker_client_id=worker_client_id,
     )
     if not get_settings().remote_worker_enabled:
         background_tasks.add_task(process_ai_selection_task, task.id)
@@ -377,11 +379,12 @@ def read_selection_task_api(
 @router.get("/api/worker/tasks/next")
 def claim_worker_task_api(
     x_worker_token: str | None = Header(None),
+    x_worker_client_id: str | None = Header(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """本地采集 Worker 领取一个待采集任务。"""
     _verify_worker_token(x_worker_token)
-    task = claim_next_worker_task(db)
+    task = claim_next_worker_task(db, x_worker_client_id)
     if not task:
         return {"status": "empty"}
 
@@ -394,6 +397,7 @@ def claim_worker_task_api(
             "top_count": task.top_count,
             "min_purchase_price": task.min_purchase_price,
             "max_purchase_price": task.max_purchase_price,
+            "worker_client_id": task.worker_client_id,
         },
     }
 
@@ -443,11 +447,12 @@ def fail_worker_task_api(
 @router.get("/api/worker/market-price-tasks/next")
 def claim_market_price_worker_task_api(
     x_worker_token: str | None = Header(None),
+    x_worker_client_id: str | None = Header(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """本地 Worker 领取一个市场价格采集任务。"""
     _verify_worker_token(x_worker_token)
-    claimed = claim_next_market_price_task(db)
+    claimed = claim_next_market_price_task(db, x_worker_client_id)
     if not claimed:
         return {"status": "empty"}
 
@@ -504,11 +509,12 @@ def fail_market_price_worker_task_api(
 @router.get("/api/worker/market-login-tasks/next")
 def claim_market_login_worker_task_api(
     x_worker_token: str | None = Header(None),
+    x_worker_client_id: str | None = Header(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """本地 Worker 领取一个打开淘宝登录浏览器的请求。"""
     _verify_worker_token(x_worker_token)
-    task = claim_next_market_login_task(db)
+    task = claim_next_market_login_task(db, x_worker_client_id)
     if not task:
         return {"status": "empty"}
 
@@ -595,6 +601,7 @@ def read_recommendations_api(
 async def read_product_market_price_api(
     product_id: int,
     refresh: bool = Query(False),
+    worker_client_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """实时采集并返回单个商品的市场价格分析。"""
@@ -607,11 +614,16 @@ async def read_product_market_price_api(
         }
 
     if get_settings().remote_worker_enabled:
-        latest_task = get_latest_market_price_task(db, product_id)
+        latest_task = get_latest_market_price_task(db, product_id, worker_client_id)
         if latest_task and latest_task.status == "done" and latest_task.result_json and not refresh:
             return serialize_market_price_task(latest_task)
 
-        task = queue_market_price_task(db, product, force_refresh=refresh)
+        task = queue_market_price_task(
+            db,
+            product,
+            force_refresh=refresh,
+            worker_client_id=worker_client_id,
+        )
         return {
             "status": "queued",
             "product_id": product_id,
@@ -630,10 +642,11 @@ async def read_product_market_price_api(
 @router.get("/api/products/{product_id}/market-price/status")
 def read_product_market_price_status_api(
     product_id: int,
+    worker_client_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """查询单个商品市场价格采集任务状态。"""
-    task = get_latest_market_price_task(db, product_id)
+    task = get_latest_market_price_task(db, product_id, worker_client_id)
     if not task:
         return {
             "status": "idle",
@@ -646,11 +659,12 @@ def read_product_market_price_status_api(
 @router.post("/api/market-price/login-browser")
 async def open_market_price_login_browser_api(
     platform: str = Query("taobao"),
+    worker_client_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """打开市场价格采集专用的平台登录浏览器。"""
     if get_settings().remote_worker_enabled:
-        task = queue_market_login_task(db, platform)
+        task = queue_market_login_task(db, platform, worker_client_id)
         return {
             "status": "queued",
             "task_id": task.id,

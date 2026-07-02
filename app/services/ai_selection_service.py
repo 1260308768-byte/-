@@ -34,6 +34,12 @@ from app.utils.logger import get_logger
 logger = get_logger()
 
 
+def _normalize_worker_client_id(worker_client_id: str | None) -> str | None:
+    """规范化采集客户端 ID，空值表示旧版公共队列。"""
+    normalized = (worker_client_id or "").strip().lower()
+    return normalized or None
+
+
 def create_selection_task(
     db: Session,
     keyword: str,
@@ -41,6 +47,7 @@ def create_selection_task(
     top_count: int = 20,
     min_purchase_price: float | None = None,
     max_purchase_price: float | None = None,
+    worker_client_id: str | None = None,
 ) -> SelectionTask:
     """创建 AI 选品任务记录，任务执行由后台流程接管。"""
     task = SelectionTask(
@@ -50,6 +57,7 @@ def create_selection_task(
         top_count=top_count,
         min_purchase_price=min_purchase_price,
         max_purchase_price=max_purchase_price,
+        worker_client_id=_normalize_worker_client_id(worker_client_id),
     )
     db.add(task)
     db.commit()
@@ -64,6 +72,7 @@ async def run_ai_selection_task(
     top_count: int = 20,
     min_purchase_price: float | None = None,
     max_purchase_price: float | None = None,
+    worker_client_id: str | None = None,
 ) -> SelectionTask:
     """执行完整 AI 选品任务并返回任务记录。"""
     task = create_selection_task(
@@ -73,6 +82,7 @@ async def run_ai_selection_task(
         top_count=top_count,
         min_purchase_price=min_purchase_price,
         max_purchase_price=max_purchase_price,
+        worker_client_id=worker_client_id,
     )
     await _execute_ai_selection_task(db, task)
     refreshed_task = db.get(SelectionTask, task.id)
@@ -157,11 +167,18 @@ def fail_ai_selection_task_from_worker(
     return task
 
 
-def claim_next_worker_task(db: Session) -> SelectionTask | None:
+def claim_next_worker_task(db: Session, worker_client_id: str | None = None) -> SelectionTask | None:
     """领取一个等待本地 Worker 采集的 AI 选品任务。"""
+    normalized_client_id = _normalize_worker_client_id(worker_client_id)
+    conditions = [SelectionTask.status == "pending"]
+    if normalized_client_id:
+        conditions.append(SelectionTask.worker_client_id == normalized_client_id)
+    else:
+        conditions.append(SelectionTask.worker_client_id.is_(None))
+
     task = db.scalar(
         select(SelectionTask)
-        .where(SelectionTask.status == "pending")
+        .where(*conditions)
         .order_by(SelectionTask.created_at.asc())
     )
     if not task:
