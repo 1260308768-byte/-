@@ -130,12 +130,9 @@
                     <th><input type="checkbox" id="select-all-results" aria-label="全选"></th>
                     <th>商品</th>
                     <th>AI Score</th>
-                    <th>等级</th>
                     <th>利润</th>
                     <th>市场价格</th>
                     <th>Supplier Score</th>
-                    <th>推荐理由</th>
-                    <th>风险提示</th>
                     <th>操作</th>
                 </tr>
             </thead>
@@ -216,7 +213,6 @@
                             <em class="{{ level_class }}">{{ level }}</em>
                         </div>
                     </td>
-                    <td><span class="level-badge {{ level_class }}">{{ level }}</span></td>
                     <td>
                         <div class="profit-flow">
                             <span>采购价 <strong>¥{{ "%.2f"|format(product.purchase_price or product.price|float(0)) }}</strong></span>
@@ -261,24 +257,6 @@
                         </div>
                     </td>
                     <td>
-                        <ul class="insight-list positive">
-                            {% for reason in reasons[:3] %}
-                            <li>{{ reason }}</li>
-                            {% else %}
-                            <li>综合评分靠前</li>
-                            {% endfor %}
-                        </ul>
-                    </td>
-                    <td>
-                        <ul class="insight-list risk">
-                            {% for risk in risks[:2] %}
-                            <li>{{ risk }}</li>
-                            {% else %}
-                            <li>暂无明显风险</li>
-                            {% endfor %}
-                        </ul>
-                    </td>
-                    <td>
                         <div class="analysis-actions">
                             <button class="expand-row-button" type="button">展开</button>
                             {% if product.product_url %}
@@ -294,7 +272,29 @@
                     </td>
                 </tr>
                 <tr class="analysis-detail-row">
-                    <td colspan="10">
+                    <td colspan="7">
+                        <div class="detail-insight-grid">
+                            <div>
+                                <h3>推荐理由</h3>
+                                <ul class="insight-list positive">
+                                    {% for reason in reasons[:5] %}
+                                    <li>{{ reason }}</li>
+                                    {% else %}
+                                    <li>综合评分靠前</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div>
+                                <h3>风险提示</h3>
+                                <ul class="insight-list risk">
+                                    {% for risk in risks[:4] %}
+                                    <li>{{ risk }}</li>
+                                    {% else %}
+                                    <li>暂无明显风险</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
                         <div class="detail-panel">
                             <div>
                                 <h3>基础信息</h3>
@@ -372,7 +372,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="10" class="empty-cell">暂无推荐结果</td></tr>
+                <tr><td colspan="7" class="empty-cell">暂无推荐结果</td></tr>
                 {% endfor %}
             </tbody>
         </table>

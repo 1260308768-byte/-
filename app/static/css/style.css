@@ -1468,7 +1468,7 @@ button,
 
 .analysis-table {
     width: 100%;
-    min-width: 1280px;
+    min-width: 980px;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
@@ -1496,7 +1496,7 @@ button,
 .analysis-product {
     display: flex;
     gap: 12px;
-    min-width: 360px;
+    min-width: 300px;
 }
 
 .analysis-thumb {
@@ -1521,7 +1521,7 @@ button,
 }
 
 .analysis-product-copy strong {
-    max-width: 420px;
+    max-width: 340px;
     color: #111827;
     font-size: 13px;
     line-height: 1.5;
@@ -1565,7 +1565,7 @@ button,
 .score-stack strong,
 .supplier-score strong {
     color: #0f172a;
-    font-size: 24px;
+    font-size: 22px;
     line-height: 1;
 }
 
@@ -1611,9 +1611,9 @@ button,
 
 .profit-flow {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 12px;
-    min-width: 220px;
+    grid-template-columns: 1fr;
+    gap: 5px;
+    min-width: 130px;
 }
 
 .profit-flow span {
@@ -1630,7 +1630,7 @@ button,
 .market-price-stack {
     display: grid;
     gap: 6px;
-    min-width: 150px;
+    min-width: 135px;
 }
 
 .market-price-stack span {
@@ -1717,7 +1717,7 @@ button,
 }
 
 .supplier-score {
-    min-width: 110px;
+    min-width: 94px;
     padding: 10px;
     background: #f8fafc;
     border: 1px solid #edf1f7;
@@ -1756,10 +1756,9 @@ button,
 }
 
 .analysis-actions {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     gap: 8px;
-    min-width: 170px;
+    min-width: 88px;
 }
 
 .analysis-actions form {
@@ -1780,6 +1779,23 @@ button,
 .analysis-detail-row td {
     padding: 0 12px 16px;
     background: #fbfcff;
+}
+
+.detail-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    background: #ffffff;
+    border: 1px solid #e8edf5;
+    border-radius: 16px;
+}
+
+.detail-insight-grid h3 {
+    margin: 0 0 10px;
+    color: #0f172a;
+    font-size: 14px;
 }
 
 .detail-panel {
@@ -1950,6 +1966,7 @@ button,
     .settings-grid,
     .filter-grid,
     .pipeline,
+    .detail-insight-grid,
     .detail-panel,
     .market-platform-grid,
     .market-profit-grid {

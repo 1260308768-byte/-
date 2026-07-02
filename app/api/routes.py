@@ -78,14 +78,9 @@ templates.env.filters["money_or_dash"] = lambda value: (
 
 
 @router.get("/", response_class=HTMLResponse)
-def read_index(request: Request) -> HTMLResponse:
-    """渲染首页搜索表单。"""
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-        },
-    )
+def read_index() -> RedirectResponse:
+    """进入系统首页，默认展示工作台。"""
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
@@ -115,15 +110,9 @@ def read_ai_selection_home(
     request: Request,
     db: Session = Depends(get_db),
 ) -> Response:
-    """进入 AI 选品结果页，默认跳转到最近一次任务。"""
+    """进入 AI 选品入口页，不自动跳转到历史任务。"""
     tasks = list_selection_tasks(db)
     latest_task = tasks[0] if tasks else None
-
-    if latest_task:
-        return RedirectResponse(
-            url=f"/ai-selection/tasks/{latest_task.id}",
-            status_code=303,
-        )
 
     recommendations = get_task_recommendations(db, latest_task.id) if latest_task else []
     return templates.TemplateResponse(
@@ -143,14 +132,14 @@ async def create_ai_selection_task(
     background_tasks: BackgroundTasks,
     keyword: str = Form(...),
     pages: int = Form(10),
-    min_purchase_price: float | None = Form(None),
-    max_purchase_price: float | None = Form(None),
+    min_purchase_price: str = Form(""),
+    max_purchase_price: str = Form(""),
     worker_client_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     """创建并执行 AI 选品任务。"""
-    safe_min_price = min_purchase_price if min_purchase_price and min_purchase_price >= 0 else None
-    safe_max_price = max_purchase_price if max_purchase_price and max_purchase_price >= 0 else None
+    safe_min_price = _parse_optional_price(min_purchase_price)
+    safe_max_price = _parse_optional_price(max_purchase_price)
     if (
         safe_min_price is not None
         and safe_max_price is not None
@@ -943,6 +932,18 @@ def _csv_cell(value: Any | None) -> str:
     text = "" if value is None else str(value)
     escaped = text.replace('"', '""')
     return f'"{escaped}"'
+
+
+def _parse_optional_price(value: str | None) -> float | None:
+    """解析可选价格筛选值，空白或非法值视为未筛选。"""
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        price = float(text)
+    except ValueError:
+        return None
+    return price if price >= 0 else None
 
 
 def _verify_worker_token(token: str | None) -> None:
