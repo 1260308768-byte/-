@@ -240,4 +240,10 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as error:
+        print(f"[worker] 配置错误：{error}")
+        if getattr(sys, "frozen", False):
+            input("按回车退出...")
+        sys.exit(1)

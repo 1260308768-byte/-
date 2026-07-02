@@ -213,6 +213,22 @@ python scripts/local_worker.py
 
 AI 选品结果页中的淘宝市场价采集也复用同一个 Worker。用户点击“登录淘宝”时，服务器会通知本地 Worker 在本机打开淘宝登录浏览器；用户完成登录后点击“采集市场价”，本地 Worker 会用商品图片搜索淘宝同款，并回传当前页面前三条价格。
 
+### 打包采集端 EXE
+
+正式分发给用户时，不需要让用户安装 Python。开发电脑执行：
+
+```powershell
+.\scripts\build_worker_exe.ps1
+```
+
+打包完成后会生成：
+
+```text
+dist\AICommerceWorker\
+```
+
+把这个文件夹压缩发给用户。用户把 `.env.example` 复制为 `.env`，填入网页右上角显示的 `WORKER_CLIENT_ID`，然后双击 `启动采集端.bat` 即可运行采集端。采集端会复用用户本机 Edge/Chrome 登录态，负责 1688 采集和淘宝市场价采集。
+
 ## 环境变量
 
 ```text

@@ -3,12 +3,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 
 
-# 项目根目录，用于拼接数据库、日志等本地路径。
-BASE_DIR = Path(__file__).resolve().parents[2]
+# 项目根目录；打包成 EXE 后使用 EXE 所在目录保存配置、日志和浏览器登录态。
+BASE_DIR = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[2]
+)
 
 # 优先读取项目根目录下的 .env 文件，方便本地和 Docker 环境统一配置。
 load_dotenv(BASE_DIR / ".env")
