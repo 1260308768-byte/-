@@ -261,6 +261,11 @@ def serialize_market_price_analysis(analysis: MarketPriceAnalysis) -> dict[str, 
     return asdict(analysis)
 
 
+def clear_market_price_cache(product_id: int) -> None:
+    """清理单个商品的市场价格缓存，确保重新采集会访问平台页面。"""
+    MARKET_PRICE_CACHE.pop(product_id, None)
+
+
 def _get_market_platform_config(platform_code: str) -> MarketPlatformConfig | None:
     """根据平台编码读取市场平台配置。"""
     normalized_code = (platform_code or "").strip().lower()
@@ -1201,18 +1206,21 @@ async def _ensure_market_cdp_browser_started(
 
 
 def _find_chrome_path() -> Path:
-    """查找本机 Chrome 可执行文件。"""
+    """查找本机 Chrome 或 Edge 可执行文件。"""
     candidates = [
         Path(os.environ.get("PROGRAMFILES", "")) / "Google/Chrome/Application/chrome.exe",
         Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Google/Chrome/Application/chrome.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
+        Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft/Edge/Application/msedge.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft/Edge/Application/msedge.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft/Edge/Application/msedge.exe",
     ]
 
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
-    raise FileNotFoundError("未找到 Chrome，请先安装 Google Chrome。")
+    raise FileNotFoundError("未找到 Chrome 或 Edge，请先安装其中一个浏览器。")
 
 
 def _build_market_search_keyword(product: Product) -> str:

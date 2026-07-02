@@ -603,17 +603,52 @@
         });
     }
 
-    async function fetchMarketPrice(productId) {
+    async function pollMarketPrice(productId, summary, attempt = 0) {
+        if (attempt >= 120) {
+            if (summary) {
+                summary.querySelector("[data-market-status]").textContent = "本地 Worker 暂未回传结果";
+            }
+            return;
+        }
+
+        const response = await fetch(`/api/products/${productId}/market-price/status`);
+        const data = await response.json();
+        if (data.status === "ok") {
+            updateMarketAnalysis(productId, data.analysis);
+            return;
+        }
+
+        if (data.status === "failed") {
+            if (summary) {
+                summary.querySelector("[data-market-status]").textContent = data.message || "采集失败";
+            }
+            return;
+        }
+
+        if (summary) {
+            summary.querySelector("[data-market-status]").textContent =
+                data.status === "collecting" ? "本地 Worker 正在采集" : "等待本地 Worker 领取";
+        }
+        setTimeout(() => pollMarketPrice(productId, summary, attempt + 1), 1500);
+    }
+
+    async function fetchMarketPrice(productId, refresh = false) {
         const summary = document.querySelector(`[data-market-summary][data-product-id="${productId}"]`);
         if (summary) {
             summary.querySelector("[data-market-status]").textContent = "图片搜同款采集中";
         }
 
         try {
-            const response = await fetch(`/api/products/${productId}/market-price`);
+            const url = `/api/products/${productId}/market-price${refresh ? "?refresh=true" : ""}`;
+            const response = await fetch(url);
             const data = await response.json();
             if (data.status === "ok") {
                 updateMarketAnalysis(productId, data.analysis);
+            } else if (data.status === "queued" || data.status === "pending" || data.status === "collecting") {
+                if (summary) {
+                    summary.querySelector("[data-market-status]").textContent = data.message || "等待本地 Worker 领取";
+                }
+                setTimeout(() => pollMarketPrice(productId, summary), 1200);
             } else if (summary) {
                 summary.querySelector("[data-market-status]").textContent = data.message || "采集失败";
             }
@@ -692,7 +727,7 @@
         button.addEventListener("click", async () => {
             button.disabled = true;
             button.textContent = "采集中";
-            await fetchMarketPrice(button.dataset.marketFetch);
+            await fetchMarketPrice(button.dataset.marketFetch, true);
             button.disabled = false;
             button.textContent = "重新采集";
         });

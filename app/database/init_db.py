@@ -12,6 +12,8 @@ from app.models.ai_selection import ScoreRule
 from app.models.ai_selection import SelectionReport
 from app.models.ai_selection import SelectionTask
 from app.models.ai_selection import Supplier
+from app.models.market_price import MarketLoginTask
+from app.models.market_price import MarketPriceTask
 from app.models.product import Product
 
 
@@ -28,6 +30,8 @@ def init_database() -> None:
         SelectionReport,
         SelectionTask,
         Supplier,
+        MarketPriceTask,
+        MarketLoginTask,
     )
     Base.metadata.create_all(bind=engine)
     ensure_product_columns()
