@@ -25,6 +25,7 @@ from playwright.async_api import async_playwright
 
 from app.config.settings import BASE_DIR, get_settings
 from app.models.product import Product
+from app.utils.browser_path import find_chromium_browser_path
 from app.utils.logger import get_logger
 
 
@@ -1206,21 +1207,16 @@ async def _ensure_market_cdp_browser_started(
 
 
 def _find_chrome_path() -> Path:
-    """查找本机 Chrome 或 Edge 可执行文件。"""
-    candidates = [
-        Path(os.environ.get("PROGRAMFILES", "")) / "Google/Chrome/Application/chrome.exe",
-        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Google/Chrome/Application/chrome.exe",
-        Path(os.environ.get("LOCALAPPDATA", "")) / "Google/Chrome/Application/chrome.exe",
-        Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft/Edge/Application/msedge.exe",
-        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft/Edge/Application/msedge.exe",
-        Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft/Edge/Application/msedge.exe",
-    ]
+    """查找市场价采集使用的浏览器可执行文件。"""
+    settings = get_settings()
+    browser_path = find_chromium_browser_path(
+        preferred_path=settings.crawler_browser_executable_path,
+        use_default_browser=settings.crawler_use_default_browser,
+    )
+    if browser_path:
+        return browser_path
 
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-
-    raise FileNotFoundError("未找到 Chrome 或 Edge，请先安装其中一个浏览器。")
+    raise FileNotFoundError("未找到可用的 Chrome、Edge 或默认 Chromium 浏览器。")
 
 
 def _build_market_search_keyword(product: Product) -> str:

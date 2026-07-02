@@ -72,6 +72,16 @@ class Settings:
     # 浏览器通道，设置为 chrome 时优先使用本机 Chrome，失败后自动回退 Playwright Chromium。
     crawler_browser_channel: str | None = os.getenv("CRAWLER_BROWSER_CHANNEL") or None
 
+    # 是否优先使用用户系统默认浏览器，适合 EXE 采集端。
+    crawler_use_default_browser: bool = (
+        os.getenv("CRAWLER_USE_DEFAULT_BROWSER", "false").lower() == "true"
+    )
+
+    # 用户指定的浏览器 exe 路径；填写后优先级高于默认浏览器。
+    crawler_browser_executable_path: str | None = (
+        os.getenv("CRAWLER_BROWSER_EXECUTABLE_PATH") or None
+    )
+
     # 是否启用 Playwright 手动接管模式，用于本地处理 1688 验证页。
     crawler_manual_mode: bool = (
         os.getenv("CRAWLER_MANUAL_MODE", "false").lower() == "true"

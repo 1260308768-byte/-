@@ -18,6 +18,7 @@ from playwright.async_api import async_playwright
 
 from app.config.settings import get_settings
 from app.config.settings import BASE_DIR
+from app.utils.browser_path import find_chromium_browser_path
 from app.utils.logger import get_logger
 
 
@@ -135,6 +136,20 @@ class ProductCrawler:
                 "--start-maximized",
             ],
         }
+
+        browser_path = find_chromium_browser_path(
+            preferred_path=self.settings.crawler_browser_executable_path,
+            use_default_browser=self.settings.crawler_use_default_browser,
+        )
+        if browser_path:
+            try:
+                logger.info("使用本机浏览器启动采集：%s", browser_path)
+                return await playwright.chromium.launch_persistent_context(
+                    executable_path=str(browser_path),
+                    **launch_options,
+                )
+            except PlaywrightError:
+                logger.exception("本机浏览器启动失败，继续尝试浏览器通道")
 
         if self.settings.crawler_browser_channel:
             try:
