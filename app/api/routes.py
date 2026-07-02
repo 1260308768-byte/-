@@ -129,17 +129,17 @@ def read_ai_selection_home(
 
 @router.post("/ai-selection/tasks")
 async def create_ai_selection_task(
+    request: Request,
     background_tasks: BackgroundTasks,
     keyword: str = Form(...),
     pages: int = Form(10),
-    min_purchase_price: str = Form(""),
-    max_purchase_price: str = Form(""),
     worker_client_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     """创建并执行 AI 选品任务。"""
-    safe_min_price = _parse_optional_price(min_purchase_price)
-    safe_max_price = _parse_optional_price(max_purchase_price)
+    form_data = await request.form()
+    safe_min_price = _parse_optional_price(form_data.get("min_purchase_price"))
+    safe_max_price = _parse_optional_price(form_data.get("max_purchase_price"))
     if (
         safe_min_price is not None
         and safe_max_price is not None
