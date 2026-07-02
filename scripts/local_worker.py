@@ -7,12 +7,16 @@ from dataclasses import asdict
 import json
 import os
 from pathlib import Path
+import sys
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config.settings import BASE_DIR
 from app.crawler.product_crawler import ProductCrawler
